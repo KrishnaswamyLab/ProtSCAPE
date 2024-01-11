@@ -15,8 +15,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
 from gsae_model import GSAE
-from progsnn import ProgSNN
-
+from progsnn import ProGSNN
+from torch_geometric.loader import DataLoader
 from torchvision import transforms
 
 from de_shaw_Dataset import DEShaw, Scattering
@@ -29,15 +29,19 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', default='deshaw', type=str)
 
     parser.add_argument('--input_dim', default=None, type=int)
-    parser.add_argument('--bottle_dim', default=25, type=int)
-    parser.add_argument('--hidden_dim', default=400, type=int)
-    parser.add_argument('--learning_rate', default=0.00025, type=float)
+    parser.add_argument('--latent_dim', default=128, type=int)
+    parser.add_argument('--hidden_dim', default=256, type=int)
+    parser.add_argument('--embedding_dim', default=128, type=int)
+    parser.add_argument('--lr', default=0.001, type=float)
 
     parser.add_argument('--alpha', default=0.5, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
     parser.add_argument('--n_epochs', default=40, type=int)
     parser.add_argument('--len_epoch', default=None)
-
+    parser.add_argument('--probs', default=0.2)
+    parser.add_argument('--nhead', default=3)
+    parser.add_argument('--layers', default=3)
+    parser.add_argument('--task', default='reg')
     parser.add_argument('--batch_size', default=100, type=int)
     parser.add_argument('--n_gpus', default=1, type=int)
     parser.add_argument('--save_dir', default='train_logs/', type=str)
@@ -48,16 +52,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    full_dataset = DEShaw('graphs/total_graphs.pkl', transform=Scattering())
+    full_dataset = DEShaw('graphs/total_graphs.pkl')
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
     # print(len(full_dataset))
     # train loader
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=args.batch_size,
+    train_loader = DataLoader(train_set, batch_size=args.batch_size,
                                         shuffle=True, num_workers=15)
     # valid loader 
-    valid_loader = torch.utils.data.DataLoader(val_set, batch_size=args.batch_size,
+    valid_loader = DataLoader(val_set, batch_size=args.batch_size,
                                         shuffle=False, num_workers=15)
 
     # logger
@@ -68,7 +72,8 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-
+    # print(train_loader)
+    # print([item for item in full_dataset])
     # early stopping 
     early_stop_callback = EarlyStopping(
             monitor='val_loss',
@@ -79,10 +84,13 @@ if __name__ == '__main__':
             )
     # print(len(val_set))
     # args.input_dim = len(train_set)
-    args.input_dim = 660
+    # print()
+    args.input_dim = train_set[0].x.shape[-1]
+    # print(full_dataset[0][0].shape)
+    args.prot_graph_size = 660
     args.len_epoch = len(train_loader)
     # init module
-    model = ProgSNN(args)
+    model = ProGSNN(args)
 
     # most basic trainer, uses good defaults
     trainer = pl.Trainer(

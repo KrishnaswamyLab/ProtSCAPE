@@ -2,13 +2,13 @@ import argparse
 
 import torch
 import torch.nn as nn
-from modules.auxnetwork import str2auxnetwork
-from modules.bottleneck import BaseBottleneck
-from modules.scatter import Scatter
-from modules.transformer import PositionalEncoding, TransformerEncoder
+from auxnetwork import str2auxnetwork
+from bottleneck_progsnn import BaseBottleneck
+from scatter import Scatter
+from transformer import PositionalEncoding, TransformerEncoder
 from torch_geometric.utils import to_dense_batch
 
-from .base import TGTransformerBaseModel
+from base import TGTransformerBaseModel
 
 
 class ProGSNN(TGTransformerBaseModel):
@@ -159,7 +159,8 @@ class ProGSNN(TGTransformerBaseModel):
         col_output_embed = self.col_transformer_encoding(coeffs)
 
         output_embed = row_output_embed + col_output_embed.transpose(-1, -2)
-
+        #z_rep as input. Predict time value and switch to DE Shaw dataloader.
+        #Construct a feed forward network for this
         z_rep = output_embed.sum(1)
 
         # To regain the batch dimension

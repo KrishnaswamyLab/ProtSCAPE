@@ -98,12 +98,13 @@ class DEShaw(Dataset):
         data.edge_attr = None
         a, b = data.name.split('_')
         a, val = b.split('-')
-
+        #int(val) is 0-2 microseconds
         val = int(val) + int(a) * 10000
-
+        #Time value
         data.time = val
-
+        # print(data.x)
         if self.transform: 
+            # print(data)
             return self.transform(data)
         else:
             return data
@@ -119,7 +120,7 @@ class Scattering(object):
 
         with torch.no_grad():
             to_return = self.model(sample)
-        
+        # print(to_return[0])
         return to_return[0], torch.tensor([float(sample.time)])
 
 class Meiler_Embedding(object):
