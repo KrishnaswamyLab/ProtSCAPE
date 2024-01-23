@@ -1,168 +1,369 @@
-from typing import Union
+import numpy as np
 
 import torch
-from torch_geometric.data import Data
-from torch_geometric.data.batch import Batch
+import torch.nn as nn
+from torch.nn import Linear
+from torch_scatter import scatter_mean, scatter_add
+from torch_geometric.nn import MessagePassing
+from torch_geometric.utils import degree, add_remaining_self_loops
+from torch_geometric.utils.num_nodes import maybe_num_nodes
+from torch_geometric.utils import to_dense_batch
 
-from aggregate import Aggregate
-from diffuse import Diffuse
+device = torch.device("cuda")
 
+## Author: Alex Tong
+## Reference: Data-Driven Learning of Geometric Scattering Networks, IEEE Machine Learning for Signal Processing Workshop 2021
 
-class Scatter(torch.nn.Module):
-    """
-    "The Scattering submodule" in https://arxiv.org/pdf/2208.07458.pdf.
-
-    Quoting the paper:
-        1. The geometric scattering transform consists of a cascade of graph filters
-        constructed from a left stochastic diffusion matrix P := 1/2 (I + W D^-1),
-        which corresponds to transition probabilities of a lazy random walk Markov process.
-        2. Laziness := the probability of staying at the node instead of moving to a neighbor.
-
-    Init @params
-        `in_channels`:        number of input channels
-        `trainable_laziness`: whether the "laziness" (probability of not moving to neighbor) is trainable.
-        `trainable_wavelet`:  whether the coefficients of the diffusion wavelets are trainable.
-        `skip_aggregation`:   whether or not we skip the aggregation module.
-        `device`:             cpu or cuda.
-    Forward @params
-        `graph_data`:         torch_geometric.data.Data or torch_geometric.data.batch.Batch
-                              with fields graph_data.x (node features) and graph_data.edge_index
-
-    Technical details:
-        The Geometric Scattering Process is formulated as several (2 in this implementation)
-        [diffusion, scattering] blocks followed by a final aggregation block.
-        In each [diffusion, scattering] block, there are (1+2^J) diffusion steps and
-        J scattering filters involved. J represents the "order" of diffusion.
-        In this implementation, J is 4.
-
-    Math:
-        `P`:   diffusion matrix.
-        `W`:   weighted adjacency matrix.
-        `D`:   degree matrix.
-        `Psi`: graph wavelet filter.
-        `J`:   scattering order.
+def scatter_moments(graph, batch_indices, moments_returned=4):
+    
+    """ Compute specified statistical coefficients for each feature of each graph passed. 
+        The graphs expected are disjoint subgraphs within a single graph, whose feature tensor is passed as argument "graph."
+        "batch_indices" connects each feature tensor to its home graph.
+        "Moments_returned" specifies the number of statistical measurements to compute. 
+        If 1, only the mean is returned. If 2, the mean and variance. If 3, the mean, variance, and skew. If 4, the mean, variance, skew, and kurtosis.
+        The output is a dictionary. You can obtain the mean by calling output["mean"] or output["skew"], etc.
     """
 
-    def __init__(
-        self,
-        in_channels: int,
-        trainable_laziness: bool = False,
-        trainable_wavelets: bool = True,
-        skip_aggregation: bool = False,
-        device: torch.device = torch.device('cpu')
-    ) -> None:
-        super(Scatter, self).__init__()
+    # Step 1: Aggregate the features of each mini-batch graph into its own tensor
+    graph_features = [torch.zeros(0).to(graph) for i in range(torch.max(batch_indices) + 1)]
 
-        self.in_channels = in_channels
+    for i, node_features in enumerate(graph):
+
+        # Sort the graph features by graph, according to batch_indices. For each graph, create a tensor whose first row is the first element of each feature, etc.
+        # print("node features are", node_features)
+        
+        if (len(graph_features[batch_indices[i]]) == 0):  
+            # If this is the first feature added to this graph, fill it in with the features.
+            graph_features[batch_indices[i]] = node_features.view(-1, 1, 1)  # .view(-1,1,1) changes [1,2,3] to [[1],[2],[3]], so that we can add each column to the respective row.
+        else:
+            graph_features[batch_indices[i]] = torch.cat((graph_features[batch_indices[i]], node_features.view(-1, 1, 1)), dim=1)  # concatenates along columns
+
+    statistical_moments = {"mean": torch.zeros(0).to(graph)}
+
+    if moments_returned >= 2:
+        statistical_moments["variance"] = torch.zeros(0).to(graph)
+    if moments_returned >= 3:
+        statistical_moments["skew"] = torch.zeros(0).to(graph)
+    if moments_returned >= 4:
+        statistical_moments["kurtosis"] = torch.zeros(0).to(graph)
+
+    for data in graph_features:
+
+        data = data.squeeze()
+        
+        def m(i):  # ith moment, computed with derivation data
+            return torch.mean(deviation_data ** i, axis=1)
+
+        mean = torch.mean(data, dim=1, keepdim=True)
+        
+        if moments_returned >= 1:
+            statistical_moments["mean"] = torch.cat(
+                (statistical_moments["mean"], mean.T), dim=0
+            )
+
+        # produce matrix whose every row is data row - mean of data row
+
+        #for a in mean:
+        #    mean_row = torch.ones(data.shape[1]).to( * a
+        #    tuple_collect.append(
+        #        mean_row[None, ...]
+        #    )  # added dimension to concatenate with differentiation of rows
+        # each row contains the deviation of the elements from the mean of the row
+        
+        deviation_data = data - mean
+        
+        # variance: difference of u and u mean, squared element wise, summed and divided by n-1
+        variance = m(2)
+        
+        if moments_returned >= 2:
+            statistical_moments["variance"] = torch.cat(
+                (statistical_moments["variance"], variance[None, ...]), dim=0
+            )
+
+        # skew: 3rd moment divided by cubed standard deviation (sd = sqrt variance), with correction for division by zero (inf -> 0)
+        skew = m(3) / (variance ** (3 / 2)) 
+        skew[
+            skew > 1000000000000000
+        ] = 0  # multivalued tensor division by zero produces inf
+        skew[
+            skew != skew
+        ] = 0  # single valued division by 0 produces nan. In both cases we replace with 0.
+        if moments_returned >= 3:
+            statistical_moments["skew"] = torch.cat(
+                (statistical_moments["skew"], skew[None, ...]), dim=0
+            )
+
+        # kurtosis: fourth moment, divided by variance squared. Using Fischer's definition to subtract 3 (default in scipy)
+        kurtosis = m(4) / (variance ** 2) - 3 
+        kurtosis[kurtosis > 1000000000000000] = -3
+        kurtosis[kurtosis != kurtosis] = -3
+        if moments_returned >= 4:
+            statistical_moments["kurtosis"] = torch.cat(
+                (statistical_moments["kurtosis"], kurtosis[None, ...]), dim=0
+            )
+    
+    # Concatenate into one tensor (alex)
+    statistical_moments = torch.cat([v for k,v in statistical_moments.items()], axis=1)
+    #statistical_moments = torch.cat([statistical_moments['mean'],statistical_moments['variance']],axis=1)
+    
+    return statistical_moments
+
+
+class LazyLayer(torch.nn.Module):
+    
+    """ Currently a single elementwise multiplication with one laziness parameter per
+    channel. this is run through a softmax so that this is a real laziness parameter
+    """
+
+    def __init__(self, n):
+        super().__init__()
+        self.weights = torch.nn.Parameter(torch.Tensor(2, n))
+
+    def forward(self, x, propogated):
+        inp = torch.stack((x, propogated), dim=1)
+        s_weights = torch.nn.functional.softmax(self.weights, dim=0)
+        return torch.sum(inp * s_weights, dim=-2)
+
+    def reset_parameters(self):
+        torch.nn.init.ones_(self.weights)
+
+
+def gcn_norm(edge_index, edge_weight=None, num_nodes=None, add_self_loops=False, dtype=None):
+
+    num_nodes = maybe_num_nodes(edge_index, num_nodes)
+
+    if edge_weight is None:
+        edge_weight = torch.ones((edge_index.size(1), ), dtype=dtype,
+                                 device=edge_index.device)
+
+    if add_self_loops:
+        edge_index, tmp_edge_weight = add_remaining_self_loops(
+            edge_index, edge_weight, 1, num_nodes)
+        assert tmp_edge_weight is not None
+        edge_weight = tmp_edge_weight
+
+    row, col = edge_index[0], edge_index[1]
+    deg = scatter_add(edge_weight, col, dim=0, dim_size=num_nodes)
+    deg_inv_sqrt = deg.pow_(-1)
+    deg_inv_sqrt.masked_fill_(deg_inv_sqrt == float('inf'), 0)
+    
+    return edge_index, deg_inv_sqrt[row] * edge_weight
+
+
+class Diffuse(MessagePassing):
+
+    """ Implements low pass walk with optional weights
+
+    Built on top of torch geometric Message Passing GNN class
+
+    returns diffused signal
+
+    """
+
+    def __init__(self, in_channels, out_channels, trainable_laziness=False, fixed_weights=True):
+
+        super().__init__(aggr="add", node_dim=-3)  # "Add" aggregation.
+        assert in_channels == out_channels
         self.trainable_laziness = trainable_laziness
-        self.skip_aggregation = skip_aggregation
-        self.device = device
+        self.fixed_weights = fixed_weights
+        if trainable_laziness:
+            self.lazy_layer = LazyLayer(in_channels)
+        if not self.fixed_weights:
+            self.lin = torch.nn.Linear(in_channels, out_channels)
 
-        # `J`. Currently only implemented for 4.
-        self.scattering_order = 4
 
-        self.diffusion_layer1 = Diffuse(
-            in_channels=in_channels,
-            out_channels=in_channels,
-            trainable_laziness=trainable_laziness).to(self.device)
+    def forward(self, x, edge_index, edge_weight=None):
 
-        self.diffusion_layer2 = Diffuse(
-            in_channels=4 * in_channels,
-            out_channels=4 * in_channels,
-            trainable_laziness=trainable_laziness).to(self.device)
+        # x has shape [N, in_channels]
+        # edge_index has shape [2, E]
 
-        # Weightings for the 0th to 2^Jth diffusion wavelets.
-        self.wavelet_constructor = torch.nn.Parameter(
-            torch.tensor(
-                [[0, -1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                 [0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                 [0, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-                 [0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1]],
-                dtype=torch.float,
-                requires_grad=trainable_wavelets)).to(self.device)
+        # Step 2: Linearly transform node feature matrix.
+        # turn off this step for simplicity
+        if not self.fixed_weights:
+            x = self.lin(x)
 
-        self.aggregation_submodule = Aggregate(
-            aggregation_method='statistical_moments').to(self.device)
+        # Step 3: Compute normalization
+        edge_index, edge_weight = gcn_norm(edge_index, edge_weight, x.size(self.node_dim), dtype=x.dtype)
 
-    def forward(self, graph_data: Union[Data, Batch]):
-        # TODO: Still need to go through the `forward` function
-        # and cross-compare with the paper...
-        print(graph_data)
-        x, edge_index = graph_data.x, graph_data.edge_index
+        # Step 4-6: Start propagating messages.
+        propogated = self.propagate(
+            edge_index, edge_weight=edge_weight, size=None, x=x,
+        )
+        if not self.trainable_laziness:
+            return 0.5 * (x + propogated)
 
-        # Scattering round 0 outputs := input with dims [node, feature, J].
-        S0 = x[:, :, None]
-        ''' Diffusion round 1 '''
-        diffusion_outputs = [S0]
-        # Let the scattering outcome go through 2^4 diffusion steps.
-        for _ in range(2**self.scattering_order):
-            diffusion_outputs.append(
-                self.diffusion_layer1(diffusion_outputs[-1], edge_index))
-        # Stack the diffusion outputs into a single tensor.
-        # This represents [P^0, P^1, ..., P^2^J]
-        diffusion_outputs = torch.stack(diffusion_outputs)
-        ''' Scattering round 1 '''
-        # This simulates the below subtraction:
-        #   psi_j = P^2^(j-1) - P^2^j for 0<=j<=J=4
-        # Specifically, the implementation directly takes the signal into the process:
-        #   psi_j x = (P^2^(j-1) - P^2^j) x
-        scattering_outputs = torch.matmul(
-            self.wavelet_constructor,
-            diffusion_outputs.view(self.wavelet_constructor.shape[-1], -1))
-        scattering_outputs = scattering_outputs.view(self.scattering_order,
-                                                     S0.shape[0], S0.shape[1])
-        # Scattering round 1 outputs.
-        # [J, node, feature] to [node, feature, J]
-        S1 = torch.abs(scattering_outputs.permute(1, 2, 0))
-        ''' Diffusion round 2 '''
-        diffusion_outputs = [S1]
-        for _ in range(2**self.scattering_order):
-            diffusion_outputs.append(
-                self.diffusion_layer2(diffusion_outputs[-1], edge_index))
-        diffusion_outputs = torch.stack(diffusion_outputs)
-        ''' Scattering round 2 '''
-        scattering_outputs = torch.matmul(
-            self.wavelet_constructor,
-            diffusion_outputs.view(self.wavelet_constructor.shape[-1], -1))
-        scattering_outputs = scattering_outputs.view(self.scattering_order,
-                                                     S1.shape[0], S1.shape[1],
-                                                     S1.shape[2])
-        scattering_outputs = scattering_outputs.permute(1, 0, 3, 2)
-        scattering_outputs = scattering_outputs.reshape(
-            S1.shape[0], self.scattering_order**2, S1.shape[1])
-        # Scattering round 2 outputs.
-        S2 = torch.abs(scattering_outputs[:, feng_filters()])
-        ''' Aggregation after all [diffusion, scattering] blocks '''
-        S0, S1 = S0.permute(0, 2, 1), S1.permute(0, 2, 1)
-        x = torch.cat([S0, S1, S2], dim=1)
+        return self.lazy_layer(x, propogated)
 
-        if not self.skip_aggregation:
-            if hasattr(graph_data, 'batch') and graph_data.batch is not None:
-                x = self.aggregation_submodule(graph=x,
-                                               batch_indices=graph_data.batch,
-                                               moments_returned=4)
-            else:
-                x = self.aggregation_submodule(graph=x,
-                                               batch_indices=torch.zeros(
-                                                   graph_data.x.shape[0],
-                                                   dtype=torch.int32),
-                                               moments_returned=4)
 
-        return x, self.wavelet_constructor
+    def message(self, x_j, edge_weight):
+        
+        # x_j has shape [E, out_channels]
+        # Step 4: Normalize node features.
+        return edge_weight.view(-1, 1, 1) * x_j
 
-    def out_shape(self):
-        # x * 4 moments * in_channels
-        return 11 * 4 * self.in_channels
 
-    def out_shape_skip_aggregation(self):
-        # x * in_channels
-        return 11 * self.in_channels
+    def message_and_aggregate(self, adj_t, x):
+
+        return torch.matmul(adj_t, x, reduce=self.aggr)
+
+
+    def update(self, aggr_out):
+
+        # aggr_out has shape [N, out_channels]
+        # Step 6: Return new node embeddings.
+        return aggr_out
 
 
 def feng_filters():
+
+    tmp = np.arange(16).reshape(4,4) #tmp doesn't seem to be used!
     results = [4]
     for i in range(2, 4):
         for j in range(0, i):
-            results.append(4 * i + j)
+            results.append(4*i+j)
 
     return results
+
+
+class Scatter(torch.nn.Module):
+
+    def __init__(self, in_channels, max_graph_size, trainable_laziness=False, trainable_f=True):
+
+        super().__init__()
+        self.in_channels = in_channels
+        self.trainable_laziness = trainable_laziness
+        self.diffusion_layer1 = Diffuse(in_channels, in_channels, trainable_laziness)
+        self.diffusion_layer2 = Diffuse(
+            4 * in_channels, 4 * in_channels, trainable_laziness
+        )
+        self.wavelet_constructor = torch.nn.Parameter(torch.tensor([
+            [0, -1.0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, -1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 1]
+        ], requires_grad=trainable_f))
+
+        self.max_graph_size = max_graph_size
+
+    def generate_graph_mask(self, dense_batch):
+
+        b_graph_size = dense_batch.shape[1]
+
+        mask_size = self.max_graph_size -  b_graph_size
+        mask = torch.zeros((dense_batch.shape[0], mask_size, dense_batch.shape[-1]))
+        return mask.type_as(dense_batch)
+
+    def forward(self, data, return_f_matrix = False):
+
+        x, edge_index = data.x, data.edge_index
+
+        s0 = x[:,:,None]
+        avgs = [s0]
+        for i in range(16):
+            avgs.append(self.diffusion_layer1(avgs[-1], edge_index))
+        for j in range(len(avgs)):
+            avgs[j] = avgs[j][None, :, :, :]  # add an extra dimension to each tensor to avoid data loss while concatenating TODO: is there a faster way to do this?
+        
+        # Combine the diffusion levels into a single tensor.
+        diffusion_levels = torch.cat(avgs)
+        
+        # Reshape the 3d tensor into a 2d tensor and multiply with the wavelet_constructor matrix
+        # This simulates the below subtraction:
+        # filter1 = avgs[1] - avgs[2]
+        # filter2 = avgs[2] - avgs[4]
+        # filter3 = avgs[4] - avgs[8]
+        # filter4 = avgs[8] - avgs[16]
+        subtracted = torch.matmul(self.wavelet_constructor, diffusion_levels.view(17, -1))
+        subtracted = subtracted.view(4, x.shape[0], x.shape[1]) # reshape into given input shape
+        s1 = torch.abs(
+            torch.transpose(torch.transpose(subtracted, 0, 1), 1, 2))  # transpose the dimensions to match previous
+
+        # perform a second wave of diffusing, on the recently diffused.
+        avgs = [s1]
+        for i in range(16): # diffuse over diffusions
+            avgs.append(self.diffusion_layer2(avgs[-1], edge_index))
+        for i in range(len(avgs)): # add an extra dimension to each diffusion level for concatenation
+            avgs[i] = avgs[i][None, :, :, :]
+        diffusion_levels2 = torch.cat(avgs)
+        
+        # Having now generated the diffusion levels, we can cmobine them as before
+        subtracted2 = torch.matmul(self.wavelet_constructor, diffusion_levels2.view(17, -1))
+        subtracted2 = subtracted2.view(4, s1.shape[0], s1.shape[1], s1.shape[2])  # reshape into given input shape
+        subtracted2 = torch.transpose(subtracted2, 0, 1)
+        subtracted2 = torch.abs(subtracted2.reshape(-1, self.in_channels, 4))
+
+
+        s2_swapped = torch.reshape(torch.transpose(subtracted2, 1, 2), (-1, 16, self.in_channels))
+        s2 = s2_swapped[:, feng_filters()]
+
+        x = torch.cat([s0, s1], dim=2)
+        x = torch.transpose(x, 1, 2)
+        x = torch.cat([x, s2], dim=1)
+
+        x_dense = to_dense_batch(x,data.batch)[0]
+
+        x = x_dense.reshape(data.num_graphs, -1, self.out_shape())
+
+        mask = self.generate_graph_mask(x)
+
+        x = torch.cat((x, mask), dim=1)
+
+        # #x = scatter_mean(x, batch, dim=0)
+        # if hasattr(data, 'batch'):
+        #     x = scatter_moments(x, data.batch, 4)
+        # else:
+        #     x = scatter_moments(x, torch.zeros(data.x.shape[0], dtype=torch.int32), 4)
+        #     # print('x returned shape', x.shape)
+
+        if return_f_matrix:
+            return x, self.wavelet_constructor
+        else:
+            return x
+
+
+    def out_shape(self):
+
+        # x * 4 moments * in
+        return 11 * self.in_channels
+
+
+
+
+
+class TSNet(torch.nn.Module):
+
+    def __init__(self, in_channels, out_channels,
+                     edge_in_channels = None, trainable_laziness=False,
+                     trainable_f=True,  **kwargs):
+
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.edge_in_channels = edge_in_channels
+        self.trainable_laziness = trainable_laziness
+        self.scatter = Scatter(in_channels, trainable_laziness=trainable_laziness,
+                                trainable_f=trainable_f)
+        self.lin1 = Linear(self.scatter.out_shape(), out_channels)
+        self.act = torch.nn.LeakyReLU()
+        
+        self.out_shape = self.scatter.out_shape()
+
+
+    def forward(self, data):
+
+        x = self.scatter(data)
+        x = self.act(x)
+        x = self.lin1(x)
+        return x
+
+    def loss_function(self, predictions, targets, valid_step=False):
+        # unpack everything
+        y_hat = predictions
+        _, y_true = targets
+
+        # enrichment pred loss
+        reg_loss = nn.MSELoss()(y_hat.flatten(), y_true.flatten())
+
+        mloss_dict =  {"loss": reg_loss}
+
+        return reg_loss, mloss_dict

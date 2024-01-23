@@ -1,0 +1,19 @@
+hparams: !!python/object:argparse.Namespace
+  alpha: 0.5
+  batch_size: 100
+  beta: 0.0005
+  dataset: deshaw
+  embedding_dim: 128
+  hidden_dim: 256
+  input_dim: 15
+  latent_dim: 128
+  layers: 1
+  len_epoch: 80
+  lr: 0.001
+  n_epochs: 3
+  n_gpus: 1
+  nhead: 1
+  probs: 0.2
+  prot_graph_size: 660
+  save_dir: train_logs/
+  task: reg

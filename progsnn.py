@@ -7,7 +7,7 @@ from bottleneck_progsnn import BaseBottleneck
 from scatter import Scatter
 from transformer import PositionalEncoding, TransformerEncoder
 from torch_geometric.utils import to_dense_batch
-
+from torch.nn import functional as F
 from base import TGTransformerBaseModel
 
 
@@ -38,29 +38,28 @@ class ProGSNN(TGTransformerBaseModel):
         self.batch_size = hparams.batch_size
 
         # Encoder
-        self.scattering_network = Scatter(in_channels=self.input_dim,
-                                          skip_aggregation=True)
+        self.scattering_network = Scatter(self.input_dim, self.max_seq_len, trainable_f=True)
 
         self.pos_encoder = PositionalEncoding(
-            d_model=self.scattering_network.out_shape_skip_aggregation(),
+            d_model=self.scattering_network.out_shape(),
             max_len=self.max_seq_len)
 
         self.row_encoder = TransformerEncoder(
             num_layers=self.layers,
-            input_dim=self.scattering_network.out_shape_skip_aggregation(),
+            input_dim=self.scattering_network.out_shape(),
             num_heads=self.nhead,
             dim_feedforward=self.hidden_dim,
             dropout=self.probs)
 
         self.col_encoder = TransformerEncoder(num_layers=self.layers,
                                               input_dim=self.max_seq_len,
-                                              num_heads=2,
+                                              num_heads=self.nhead,
                                               dim_feedforward=self.hidden_dim,
                                               dropout=self.probs)
 
         # Auxiliary network
         self.bottleneck_module = BaseBottleneck(
-            self.scattering_network.out_shape_skip_aggregation(),
+            self.scattering_network.out_shape(),
             self.latent_dim)
 
         # Property prediction
@@ -68,36 +67,13 @@ class ProGSNN(TGTransformerBaseModel):
         proto_pred_net = str2auxnetwork(self.task)
         self.pred_net = proto_pred_net(hparams)
 
-        # Reconstruction of the scattering coefficients.
-        # self.recon = nn.Sequential(
-        #     nn.Linear(self.scattering_network.out_shape_skip_aggregation(), self.hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(self.hidden_dim, self.scattering_network.out_shape_skip_aggregation()))
-        self.recon = nn.Sequential(
-            nn.Linear(self.latent_dim, self.hidden_dim), nn.ReLU(),
-            nn.Linear(self.hidden_dim,
-                      self.scattering_network.out_shape_skip_aggregation()))
+        #Can we use the same regressor module for time prediction as well?
+       
+        self.fc1 = nn.Linear(self.latent_dim, self.hidden_dim)
+        self.fc2 = nn.Linear(self.hidden_dim, self.scattering_network.out_shape())
 
         self.loss_list = []
 
-    def generate_zero_padding(self, dense_batch):
-        graph_size = dense_batch.shape[1]
-        padding_size = self.max_seq_len - graph_size
-        padding = torch.zeros(
-            (dense_batch.shape[0], padding_size, dense_batch.shape[-1]))
-        return padding.type_as(dense_batch)
-
-    def zero_pad_coeffs(self, raw_coeffs, batch):
-        # Zero-pad the coefficients to the same dimension for the transformer modules.
-        # [batch_size, max_node_size, coeff_dim].
-        coeffs = to_dense_batch(raw_coeffs, batch.batch)[0]
-
-        coeffs = coeffs.reshape(
-            batch.num_graphs, -1,
-            self.scattering_network.out_shape_skip_aggregation())
-        padding = self.generate_zero_padding(coeffs)
-        coeffs = torch.cat((coeffs, padding), dim=1)
-        return coeffs
 
     def generate_row_mask(self, curr_seq_len):
         """create mask for transformer
@@ -125,8 +101,8 @@ class ProGSNN(TGTransformerBaseModel):
         # row_mask = self.generate_row_mask(embedded_batch.shape[1])
         # output_embed = self.row_encoder(pos_encoded_batch, row_mask)
         output_embed = self.row_encoder(pos_encoded_batch, None)
-
-        return output_embed
+        att_maps = self.row_encoder.get_attention_maps(pos_encoded_batch)
+        return output_embed, att_maps
 
     def col_transformer_encoding(self, embedded_batch):
         """transformer logic
@@ -139,8 +115,15 @@ class ProGSNN(TGTransformerBaseModel):
 
         # TransformerEncoder takes input (sequence_length,batch_size,num_features)
         output_embed = self.col_encoder(embedded_batch, None)
+        attention_maps = self.col_encoder.get_attention_maps(embedded_batch)
 
-        return output_embed
+        return output_embed, attention_maps
+
+    def reconstruct(self, z_rep):
+        # Reconstruct the scattering coefficients.
+        z_rep_expanded = z_rep.unsqueeze(1).repeat(1, self.max_seq_len, 1)
+        h = F.relu(self.fc1(z_rep_expanded))
+        return self.fc2(h)
 
     def encode(self, batch):
         """
@@ -148,15 +131,13 @@ class ProGSNN(TGTransformerBaseModel):
         """
 
         # Scattering coefficients.
-        raw_coeffs, _ = self.scattering_network(batch)
-        # Zero-pad the coefficients to the same dimension for the transformer modules.
-        coeffs = self.zero_pad_coeffs(raw_coeffs, batch)
-
+        coeffs = self.scattering_network(batch)
+    
         if len(coeffs.shape) == 2:
             coeffs = coeffs.unsqueeze(0)
 
-        row_output_embed = self.row_transformer_encoding(coeffs)
-        col_output_embed = self.col_transformer_encoding(coeffs)
+        row_output_embed, att_maps = self.row_transformer_encoding(coeffs)
+        col_output_embed, attention_maps = self.col_transformer_encoding(coeffs)
 
         output_embed = row_output_embed + col_output_embed.transpose(-1, -2)
         #z_rep as input. Predict time value and switch to DE Shaw dataloader.
@@ -170,17 +151,17 @@ class ProGSNN(TGTransformerBaseModel):
         z_rep = self.bottleneck_module(z_rep)
 
         # Reconstruct the scattering coefficients.
-        z_rep_expanded = z_rep.unsqueeze(1).repeat(1, self.max_seq_len, 1)
-        coeffs_recon = self.recon(z_rep_expanded)
+        coeffs_recon = self.reconstruct(z_rep)
 
-        return z_rep, coeffs, coeffs_recon
+        return z_rep, coeffs, coeffs_recon, attention_maps, att_maps
 
     def forward(self, batch):
-        z_rep, coeffs, coeffs_recon = self.encode(batch)
+        z_rep, coeffs, coeffs_recon, attn_maps, att_maps = self.encode(batch)
+        # print(attn_maps)
 
         y_pred = self.pred_net(z_rep)
 
-        return y_pred, z_rep, coeffs_recon, coeffs
+        return y_pred, z_rep, coeffs_recon, coeffs, attn_maps, att_maps
 
     def main_loss(self, predictions, targets):
         y_pred = predictions
@@ -193,7 +174,7 @@ class ProGSNN(TGTransformerBaseModel):
             loss = nn.BCEWithLogitsLoss()(y_pred.flatten(), y_true.flatten())
         elif self.task == 'multi_class':
             loss = nn.CrossEntropyLoss()(y_pred, y_true)
-
+        # print("loss: {}".format(loss))
         return loss
 
     def recon_loss(self, predictions, targets):
@@ -201,7 +182,17 @@ class ProGSNN(TGTransformerBaseModel):
         y_true = targets
 
         loss = nn.MSELoss()(y_pred.flatten(), y_true.flatten())
+        # print("loss: {}".format(loss))
         return loss
 
     def get_loss_list(self):
         return self.loss_list
+    
+    def training_step(self, batch, batch_idx):
+        x, y  = batch
+        x = x.float()
+        y = y.float()
+    
+    
+
+    

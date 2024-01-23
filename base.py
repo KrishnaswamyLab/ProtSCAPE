@@ -42,7 +42,7 @@ class TGTransformerBaseModel(LightningModule):
         x, y = batch.x, batch.time
         x, y = x.float(), y.float()
 
-        preds, _, coeffs_recon, coeffs = self(batch)
+        preds, _, coeffs_recon, coeffs, _, _ = self(batch)
         targets = y
 
         return preds, targets, coeffs_recon, coeffs

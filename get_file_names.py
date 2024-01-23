@@ -1,7 +1,7 @@
 import numpy as np
 import os
 from tqdm import tqdm
-DATA_DIR = #PUT DATA DIR HERE
+DATA_DIR = '/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/BPTI/'
 PROTEIN_NAME = DATA_DIR.split('/')[-1]
 
 pdgs0to2 = []

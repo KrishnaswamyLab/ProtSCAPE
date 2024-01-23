@@ -7,7 +7,7 @@ import torch
 import torch.utils.data
 from torch import nn
 from torch.nn import functional as F
-
+import pickle
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -36,11 +36,11 @@ if __name__ == '__main__':
 
     parser.add_argument('--alpha', default=0.5, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
-    parser.add_argument('--n_epochs', default=40, type=int)
+    parser.add_argument('--n_epochs', default=10, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)
-    parser.add_argument('--nhead', default=3)
-    parser.add_argument('--layers', default=3)
+    parser.add_argument('--nhead', default=1)
+    parser.add_argument('--layers', default=1)
     parser.add_argument('--task', default='reg')
     parser.add_argument('--batch_size', default=100, type=int)
     parser.add_argument('--n_gpus', default=1, type=int)
@@ -63,6 +63,10 @@ if __name__ == '__main__':
     # valid loader 
     valid_loader = DataLoader(val_set, batch_size=args.batch_size,
                                         shuffle=False, num_workers=15)
+    full_loader = DataLoader(full_dataset,
+                             batch_size=args.batch_size,
+                             shuffle=False,
+                             num_workers=15)
 
     # logger
     now = datetime.datetime.now()
@@ -86,6 +90,7 @@ if __name__ == '__main__':
     # args.input_dim = len(train_set)
     # print()
     args.input_dim = train_set[0].x.shape[-1]
+    print(train_set[0].x.shape[-1])
     # print(full_dataset[0][0].shape)
     args.prot_graph_size = 660
     args.len_epoch = len(train_loader)
@@ -96,7 +101,7 @@ if __name__ == '__main__':
     trainer = pl.Trainer(
                         max_epochs=args.n_epochs,
                         #gpus=args.n_gpus,
-                        #callbacks=[early_stop_callback],
+                        callbacks=[early_stop_callback],
                         #logger = logger
                         )
     trainer.fit(model=model,
@@ -104,20 +109,55 @@ if __name__ == '__main__':
                 val_dataloaders=valid_loader,
                 )
 
-
+    
     model = model.cpu()
     model.dev_type = 'cpu'
-
-    with torch.no_grad():
-        loss = model.get_loss_list()
-
-    #print('saving reconstruction loss')
-    loss = np.array(loss)
-    np.save(save_dir + "reg_loss_list.npy", loss)
-
-
     print('saving model')
-    torch.save(model.state_dict(), save_dir + "model.npy")
+    torch.save(model.state_dict(), save_dir + "model_10.npy")
+    
+
+    residual_attention = []
+    embeddings = []
+    print(len(full_dataset))
+    # with torch.no_grad():
+    #     loss = model.get_loss_list()
+    #     for batch in full_loader:
+    #         y_pred, z_rep, coeffs, coeffs_recon, attention_maps, att_maps_res = model(batch)
+    #         # att_maps = []
+    #         # print(len(att_maps_res))
+    #         print(att_maps_res[0].shape)
+    #         # print(att_maps_res[0].shape)
+    #         # for i in range(len(att_maps_res)):
+    #         #     #loops over 3 layers of attention and hence we get 3 attention maps: 1 for each layer
+
+    #         #     att_maps.append(att_maps_res[i].mean(dim = (0,1))) 
+    #         # print(att_maps_res[0].shape)
+    #         # print(len(att_maps))
+    #         # print(att_maps[5].shape)
+    #         # print(attention_maps[0].shape)
+    #         residual_attention.append(att_maps_res[0])
+    #         # print(residual_attention[0][0].shape)
+    #         # x = np.vstack(residual_attention)
+    #         # print(x.shape)
+    #         # print(len(residual_attention))
+    #         embeddings.append(z_rep)
+
+    # print('saving reconstruction loss')
+    # loss = np.array(loss)
+    # np.save(save_dir + "reg_loss_list.npy", loss)
+    
+    # print('saving attention map')
+    # # residual_attention = np.stack(residual_attention)
+    # # np.save(save_dir + "attention_maps.npy", residual_attention)
+    # with open('attention.pkl', 'wb') as file:
+    #     pickle.dump(residual_attention, file)
+
+    
+    # print('saving embeddings')
+    # embeddings = np.array(embeddings)
+    # np.save(save_dir + "embeddings.npy", embeddings)  
+
+    
 
 
 
