@@ -1,2 +1,6 @@
 .venv
 *.pkl
+data.pk
+lightning_logs/*
+data/*
+logs/*

@@ -58,6 +58,7 @@ if __name__ == '__main__':
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
     # print(len(full_dataset))
     # train loader
+    # import pdb; pdb.set_trace()
     train_loader = DataLoader(train_set, batch_size=args.batch_size,
                                         shuffle=True, num_workers=15)
     # valid loader 
@@ -79,16 +80,18 @@ if __name__ == '__main__':
             )
    
     args.input_dim = full_dataset[0].x.shape[-1]
+    # print(args.input_dim)
+    
     # print(train_set[0].x.shape[-1])
     # print(full_dataset[0][0].shape)
     args.prot_graph_size = 660
     args.len_epoch = len(full_loader)
     # init module
     model = ProGSNN(args)
-    trained_weights = torch.load('/home/sv496/project/ProGSNN-1/train_logs/progsnn_logs_run_deshaw_2024-01-22-29/model_10.npy')
+    trained_weights = torch.load('/home/sv496/project/ProGSNN-1/train_logs/progsnn_logs_run_deshaw_2024-01-22-18/model.npy')
     model.load_state_dict(trained_weights)
-    model.eval()
-
+    # model.eval()
+    # import pdb; pdb.set_trace()
     residual_attention = []
     embeddings = []
     print(len(full_dataset))
@@ -96,8 +99,8 @@ if __name__ == '__main__':
         loss = model.get_loss_list()
         for batch in full_loader:
             y_pred, z_rep, coeffs, coeffs_recon, attention_maps, att_maps_res = model(batch)
-           
-            print(att_maps_res[0].shape)
+            # print(attention_maps[0].shape)
+            # print(att_maps_res[0].shape)
             
             residual_attention.append(att_maps_res[0])
             
@@ -110,7 +113,7 @@ if __name__ == '__main__':
     print('saving attention map')
     # residual_attention = np.stack(residual_attention)
     # np.save(save_dir + "attention_maps.npy", residual_attention)
-    with open('attention_residue_10.pkl', 'wb') as file:
+    with open('attention_residue.pkl', 'wb') as file:
         pickle.dump(residual_attention, file)
 
     # print('saving embeddings')

@@ -39,8 +39,10 @@ class TGTransformerBaseModel(LightningModule):
 
     def shared_step(self, batch):
         # print(batch)
-        x, y = batch.x, batch.time
-        x, y = x.float(), y.float()
+        
+        x, y = batch.x, batch.y
+        # import pdb; pdb.set_trace()
+        x = x.float()#, y.float()
 
         preds, _, coeffs_recon, coeffs, _, _ = self(batch)
         targets = y

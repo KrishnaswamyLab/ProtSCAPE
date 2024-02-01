@@ -248,13 +248,13 @@ class Scatter(torch.nn.Module):
     def generate_graph_mask(self, dense_batch):
 
         b_graph_size = dense_batch.shape[1]
-
+        # import pdb; pdb.set_trace()
         mask_size = self.max_graph_size -  b_graph_size
         mask = torch.zeros((dense_batch.shape[0], mask_size, dense_batch.shape[-1]))
         return mask.type_as(dense_batch)
 
     def forward(self, data, return_f_matrix = False):
-
+        # print(data)
         x, edge_index = data.x, data.edge_index
 
         s0 = x[:,:,None]

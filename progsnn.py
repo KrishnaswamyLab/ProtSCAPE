@@ -95,12 +95,14 @@ class ProGSNN(TGTransformerBaseModel):
             embedded_batch ([type]): output of nn.Embedding layer (B x S X E)
         mask shape: S x S
         """
+        #embedded_batch has shape [100,660,165]
+        # print(embedded_batch.shape)
         pos_encoded_batch = self.pos_encoder(embedded_batch)
-
+        # print(pos_encoded_batch.shape)
         # TransformerEncoder takes input (sequence_length,batch_size,num_features)
-        # row_mask = self.generate_row_mask(embedded_batch.shape[1])
-        # output_embed = self.row_encoder(pos_encoded_batch, row_mask)
-        output_embed = self.row_encoder(pos_encoded_batch, None)
+        row_mask = self.generate_row_mask(embedded_batch.shape[1])
+        output_embed = self.row_encoder(pos_encoded_batch, row_mask)
+        # output_embed = self.row_encoder(pos_encoded_batch, None)
         att_maps = self.row_encoder.get_attention_maps(pos_encoded_batch)
         return output_embed, att_maps
 
@@ -131,18 +133,33 @@ class ProGSNN(TGTransformerBaseModel):
         """
 
         # Scattering coefficients.
+        #in_channels in the scattering network is 15 which corresponds to 15 amino acids
+        #When we get the out_shape(), it is multiplied by 11 which equals 165.
         coeffs = self.scattering_network(batch)
-    
+        # print(coeffs)
+        # print(coeffs.shape)
+        #Scattering coefficients have shape [100,660,165] where 660 seems like the # of residues aka graph size, 165 is 11 times 15 where 15 is the # of AA.
+        
         if len(coeffs.shape) == 2:
             coeffs = coeffs.unsqueeze(0)
 
+        print("Scattering completed!")
+        #Row transformer encoding outputs attention map of shape [100,1,660,660]
         row_output_embed, att_maps = self.row_transformer_encoding(coeffs)
+        # print("Row output embed shape")
+        # print(row_output_embed.shape)
+        #Col transformer encoding outputs attention map of shape [100,1,165,165]
+        #We want to average over the 11 channels to get an attention map of [100,1,15,15]
+        
         col_output_embed, attention_maps = self.col_transformer_encoding(coeffs)
-
+        # print("col output embed shape")
+        # print(col_output_embed.shape)
         output_embed = row_output_embed + col_output_embed.transpose(-1, -2)
         #z_rep as input. Predict time value and switch to DE Shaw dataloader.
         #Construct a feed forward network for this
         z_rep = output_embed.sum(1)
+        # print("Latent representations shape")
+        # print(z_rep.shape)
 
         # To regain the batch dimension
         if len(z_rep.shape) == 1:
@@ -156,9 +173,10 @@ class ProGSNN(TGTransformerBaseModel):
         return z_rep, coeffs, coeffs_recon, attention_maps, att_maps
 
     def forward(self, batch):
+        # print(self.scattering_network.out_shape())
         z_rep, coeffs, coeffs_recon, attn_maps, att_maps = self.encode(batch)
         # print(attn_maps)
-
+        #MLP for property prediction
         y_pred = self.pred_net(z_rep)
 
         return y_pred, z_rep, coeffs_recon, coeffs, attn_maps, att_maps
@@ -169,8 +187,12 @@ class ProGSNN(TGTransformerBaseModel):
 
         # enrichment pred loss
         if self.task == 'reg':
-            loss = nn.MSELoss()(y_pred.flatten(), y_true.flatten())
+            # import pdb; pdb.set_trace()
+            # y_pred = torch.tensor(y_pred, dtype=torch.float32)
+            # y_true = torch.tensor(y_true, dtype=torch.float32)
+            loss = nn.MSELoss()(y_pred, y_true)
         elif self.task == 'bin_class':
+            # import pdb; pdb.set_trace()
             loss = nn.BCEWithLogitsLoss()(y_pred.flatten(), y_true.flatten())
         elif self.task == 'multi_class':
             loss = nn.CrossEntropyLoss()(y_pred, y_true)
@@ -188,10 +210,15 @@ class ProGSNN(TGTransformerBaseModel):
     def get_loss_list(self):
         return self.loss_list
     
-    def training_step(self, batch, batch_idx):
-        x, y  = batch
-        x = x.float()
-        y = y.float()
+    # def training_step(self, batch, batch_idx):
+    #     x, y  = batch
+    #     x = x.float()
+    #     y = y.float()
+
+    #     y_pred, z_rep, coeffs_recon, coeffs, _, _ = self(x)
+    #     recon_loss = self.recon_loss(coeffs_recon.flatten(), coeffs.flatten())
+    #     main_loss = self.main_loss(y_pred, y) 
+        
     
     
 
