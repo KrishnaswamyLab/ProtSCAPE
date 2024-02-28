@@ -1,5 +1,4 @@
-
-
+import math
 import numpy as np
 import scipy.spatial as ss
 import torch
@@ -65,7 +64,7 @@ def dev_prot_graph_transform(item, atom_keys, label_key, feat_col):
     return item
 
 
-def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=4.5):
+def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=6.0):
     r"""
     Converts protein in dataframe representation to a graph compatible with Pytorch-Geometric, where each node is an atom.
     :param df: Protein structure in dataframe format.
@@ -86,6 +85,25 @@ def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=4.5):
     """ 
 
     allowable_feat = one_hot_dict[feat_col]
+    def first_resname(series):
+        return series.iloc[0]
+    #Average the x, y, z coordinates over the atoms of the same residue
+    # df_1 = df.groupby('resname').mean()
+    # import pdb; pdb.set_trace()
+    df = df.groupby('residue').agg({
+        'resname': first_resname,
+        'subunit': 'mean',
+        'model': 'mean',
+        'occupancy': 'mean',
+        'bfactor': 'mean',
+        'x': 'mean',
+        'y': 'mean',
+        'z': 'mean',
+        'serial_number': 'mean',
+        'element': lambda x: list(x)
+    }).reset_index()
+    # import pdb; pdb.set_trace()
+    
     node_pos = torch.FloatTensor(df[['x', 'y', 'z']].to_numpy())
 
     kd_tree = ss.KDTree(node_pos)
@@ -110,8 +128,36 @@ def one_of_k_encoding_unk(x, allowable_set):
 #### nn loading utils 
 
 """
-functions to load a list of torch_geometric datasets into
+Function to compute Radius of Gyration: https://github.com/sarisabban/Rg/blob/master/Rg.py
+	Calculates the Radius of Gyration (Rg) of a protein given its .pdb 
+	structure file. Returns the Rg integer value in Angstrom.
+
 """
+
+def Rg(df):
+	
+    coord = list()
+    mass = list()
+    for index, atom in df.iterrows():
+        # import pdb; pdb.set_trace()
+        x = atom['x']
+        y = atom['y']
+        z = atom['z']
+        coord.append([x, y, z])
+        if atom['element'] == 'C':
+            mass.append(12.0107)
+        elif atom['element'] == 'O':
+            mass.append(15.9994)
+        elif atom['element'] == 'N':
+            mass.append(14.0067)
+        elif atom['element'] == 'S':
+            mass.append(32.065)
+    xm = [(m*i, m*j, m*k) for (i, j, k), m in zip(coord, mass)]
+    tmass = sum(mass)
+    rr = sum(mi*i + mj*j + mk*k for (i, j, k), (mi, mj, mk) in zip(coord, xm))
+    mm = sum((sum(i) / tmass)**2 for i in zip(*xm))
+    rg = math.sqrt(rr / tmass-mm)
+    return(round(rg, 3))
 
 
 
