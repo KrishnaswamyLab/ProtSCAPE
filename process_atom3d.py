@@ -13,9 +13,10 @@ class Atom3dLoader:
     def progsnn_loader(self, full_dataset, data, property):
         dataset = []
         if data == "msp":
-
+            import pdb; pdb.set_trace()
             for x in tqdm(full_dataset):
                 item = x['original_atoms']
+                
                 if property == 'Rg':
                     rg = Rg(item)
                     node_feats, edge_index, edge_feats, pos = dev_prot_df_to_graph(item,feat_col='resname')
@@ -31,8 +32,8 @@ class Atom3dLoader:
         pass
 
 if __name__ == '__main__':
-    data = Atom3dLoader('data/msp/raw/MSP/data/')
-    data = data.load_data()
-    data = data.progsnn_loader(data, data='msp', property='Rg')
+    data = Atom3dLoader('data/raw/MSP/data/')
+    full_data = data.load_data()
+    data = data.progsnn_loader(full_data, data='msp', property='Rg')
     with open('data_msp_RG.pk', 'wb') as f:
         pickle.dump(data, f)
