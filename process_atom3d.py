@@ -10,12 +10,12 @@ class Atom3dLoader:
     def load_data(self):
         full_dataset = LMDBDataset(self.dataset)
         return full_dataset
-    def progsnn_loader(self, full_dataset, data, property):
+    def progsnn_loader(self, full_dataset, data, property= None):
         dataset = []
         if data == "msp":
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             for x in tqdm(full_dataset):
-                item = x['original_atoms']
+                item = x['mutated_atoms']
                 
                 if property == 'Rg':
                     rg = Rg(item)
@@ -24,7 +24,7 @@ class Atom3dLoader:
                     dataset.append(graph)
                 else:
                     node_feats, edge_index, edge_feats, pos = dev_prot_df_to_graph(item,feat_col='resname')
-                    graph = Data(node_feats, edge_index, edge_feats, y=item['label'], pos=pos)
+                    graph = Data(node_feats, edge_index, edge_feats, y=x['label'], pos=pos)
                     dataset.append(graph)
 
         return dataset
@@ -34,6 +34,6 @@ class Atom3dLoader:
 if __name__ == '__main__':
     data = Atom3dLoader('data/raw/MSP/data/')
     full_data = data.load_data()
-    data = data.progsnn_loader(full_data, data='msp', property='Rg')
-    with open('data_msp_RG.pk', 'wb') as f:
+    data = data.progsnn_loader(full_data, data='msp')
+    with open('data_msp.pk', 'wb') as f:
         pickle.dump(data, f)

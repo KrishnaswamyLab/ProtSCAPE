@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.utils import to_undirected
 import atom3d.datasets.datasets as da
+import pandas as pd
 
 
 import pathlib
@@ -88,20 +89,33 @@ def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=6.0):
     def first_resname(series):
         return series.iloc[0]
     #Average the x, y, z coordinates over the atoms of the same residue
-    # df_1 = df.groupby('resname').mean()
     # import pdb; pdb.set_trace()
-    df = df.groupby('residue').agg({
-        'resname': first_resname,
-        'subunit': 'mean',
-        'model': 'mean',
-        'occupancy': 'mean',
-        'bfactor': 'mean',
-        'x': 'mean',
-        'y': 'mean',
-        'z': 'mean',
-        'serial_number': 'mean',
-        'element': lambda x: list(x)
-    }).reset_index()
+    # Separate data for chains A and B
+    chain_a = df[df['chain'] == 'A']
+    chain_b = df[df['chain'] == 'B']
+
+    avg_coords_a = chain_a.groupby('residue').mean().reset_index()
+    avg_coords_a = pd.merge(avg_coords_a, chain_a[['residue', 'resname']], on='residue').drop_duplicates()
+
+    # Calculate average coordinates for each residue in chain B and merge with 'resname'
+    avg_coords_b = chain_b.groupby('residue').mean().reset_index()
+    avg_coords_b = pd.merge(avg_coords_b, chain_b[['residue', 'resname']], on='residue').drop_duplicates()
+
+    # Concatenate the results into a single dataframe
+    df = pd.concat([avg_coords_a, avg_coords_b], ignore_index=True)
+    # import pdb; pdb.set_trace()
+    # df = df.groupby('residue').agg({
+    #     'resname': first_resname,
+    #     'subunit': 'mean',
+    #     'model': 'mean',
+    #     'occupancy': 'mean',
+    #     'bfactor': 'mean',
+    #     'x': 'mean',
+    #     'y': 'mean',
+    #     'z': 'mean',
+    #     'serial_number': 'mean',
+    #     'element': lambda x: list(x)
+    # }).reset_index()
     # import pdb; pdb.set_trace()
     
     node_pos = torch.FloatTensor(df[['x', 'y', 'z']].to_numpy())
