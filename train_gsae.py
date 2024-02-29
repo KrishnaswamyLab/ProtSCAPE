@@ -14,7 +14,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
-from gsae_model import GSAE
+from models.gsae_model import GSAE
 
 from torchvision import transforms
 

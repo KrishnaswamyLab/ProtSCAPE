@@ -14,7 +14,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 from atom3d.util.metrics import auroc
-from gsae_model import GSAE
+from models.gsae_model import GSAE
 from models.progsnn import ProGSNN
 from torch_geometric.loader import DataLoader
 from torchvision import transforms

@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 from argparse import ArgumentParser
-from gsae_model import GSAE
+from models.gsae_model import GSAE
 import pytorch_lightning as pl
 import torch
 from deshaw_processing.de_shaw_Dataset import DEShaw, Scattering
