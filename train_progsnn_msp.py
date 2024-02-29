@@ -15,11 +15,11 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 from atom3d.util.metrics import auroc
 from gsae_model import GSAE
-from progsnn import ProGSNN
+from models.progsnn import ProGSNN
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 from atom3d.datasets import LMDBDataset
-from de_shaw_Dataset import DEShaw, Scattering
+from deshaw_processing.de_shaw_Dataset import DEShaw, Scattering
 
 
 if __name__ == '__main__':

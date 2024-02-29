@@ -1,6 +1,13 @@
 .venv
 *.pkl
-data.pk
+*.pk
 lightning_logs/*
 data/*
 logs/*
+*.json
+*.log
+__pycache__/*
+*.yaml
+*.wandb
+.pyc
+train_logs/*

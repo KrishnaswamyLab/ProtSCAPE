@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from gsae_model import GSAE
 import pytorch_lightning as pl
 import torch
-from de_shaw_Dataset import DEShaw, Scattering
+from deshaw_processing.de_shaw_Dataset import DEShaw, Scattering
 from tqdm import tqdm
 
 

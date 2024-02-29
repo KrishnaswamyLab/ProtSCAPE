@@ -18,7 +18,7 @@ from gsae_model import GSAE
 
 from torchvision import transforms
 
-from de_shaw_Dataset import DEShaw, Scattering
+from deshaw_processing.de_shaw_Dataset import DEShaw, Scattering
 
 
 if __name__ == '__main__':
