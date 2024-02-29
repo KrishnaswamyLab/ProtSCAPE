@@ -4,6 +4,9 @@ from tqdm import tqdm
 from atom3d.datasets import LMDBDataset
 from torch_geometric.data import Data
 import pickle
+import warnings
+# Ignore all warnings temporarily
+warnings.filterwarnings("ignore")
 class Atom3dLoader:
     def __init__(self, dataset_path):
         self.dataset = dataset_path

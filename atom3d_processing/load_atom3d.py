@@ -6,7 +6,8 @@ import torch.nn.functional as F
 from torch_geometric.utils import to_undirected
 import atom3d.datasets.datasets as da
 import pandas as pd
-
+from scipy.sparse import find
+from sklearn.neighbors import kneighbors_graph
 
 import pathlib
 # from ProGSNN.utils.data_utils import load_pickle_file
@@ -65,7 +66,7 @@ def dev_prot_graph_transform(item, atom_keys, label_key, feat_col):
     return item
 
 
-def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=6.0):
+def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=4.5):
     r"""
     Converts protein in dataframe representation to a graph compatible with Pytorch-Geometric, where each node is an atom.
     :param df: Protein structure in dataframe format.
@@ -119,10 +120,25 @@ def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=6.0):
     # import pdb; pdb.set_trace()
     
     node_pos = torch.FloatTensor(df[['x', 'y', 'z']].to_numpy())
+    # Convert to numpy array
+    # X = coordinates.values
+    print(node_pos)
+    # Calculate pairwise distances (Euclidean distance)
+    knn_graph = kneighbors_graph(node_pos, n_neighbors=3, mode='distance', include_self=False)
 
-    kd_tree = ss.KDTree(node_pos)
-    edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
-    edges = torch.LongTensor(edge_tuples).t().contiguous()
+    # Convert the graph to a dense matrix
+    knn_dense = knn_graph.toarray()
+
+    # Find non-zero elements (edges)
+    edges = find(knn_graph)
+
+    # Convert to tensor
+    edges = torch.tensor(edges[:2], dtype=torch.long)
+    # kd_tree = ss.KDTree(node_pos)
+    # edge_tuples = list(kd_tree.query_pairs(edge_dist_cutoff))
+    # print(edge_tuples)
+    # edges = torch.LongTensor(edge_tuples).t().contiguous()
+    # print(edges)
     edges = to_undirected(edges)
 
     node_feats = torch.FloatTensor([one_of_k_encoding_unk(e, allowable_feat) for e in df[feat_col]])
