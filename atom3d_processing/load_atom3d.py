@@ -8,7 +8,7 @@ import atom3d.datasets.datasets as da
 import pandas as pd
 from scipy.sparse import find
 from sklearn.neighbors import kneighbors_graph
-
+import constants as C
 import pathlib
 # from ProGSNN.utils.data_utils import load_pickle_file
 
@@ -87,42 +87,41 @@ def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=4.5):
     """ 
 
     allowable_feat = one_hot_dict[feat_col]
-    def first_resname(series):
-        return series.iloc[0]
     #Average the x, y, z coordinates over the atoms of the same residue
+    resid_ctr_mass_d = get_residues_ctr_mass(df)
     # import pdb; pdb.set_trace()
-    # Separate data for chains A and B
-    chain_a = df[df['chain'] == 'A']
-    chain_b = df[df['chain'] == 'B']
+    # Separate data for unique chains not just A and B
+    unique_chains = df['chain'].unique()
 
-    avg_coords_a = chain_a.groupby('residue').mean().reset_index()
-    avg_coords_a = pd.merge(avg_coords_a, chain_a[['residue', 'resname']], on='residue').drop_duplicates()
+    # Initialize an empty list to store individual DataFrames for each chain
+    avg_coords_list = []
 
-    # Calculate average coordinates for each residue in chain B and merge with 'resname'
-    avg_coords_b = chain_b.groupby('residue').mean().reset_index()
-    avg_coords_b = pd.merge(avg_coords_b, chain_b[['residue', 'resname']], on='residue').drop_duplicates()
+    # Iterate over unique chains
+    for chain_id in unique_chains:
+        # Filter DataFrame for the current chain
+        chain_df = df[df['chain'] == chain_id]
+        
+        # Calculate average coordinates for each residue in the current chain and merge with 'resname'
+        avg_coords_chain = chain_df.groupby('residue').mean().reset_index()
+        avg_coords_chain = pd.merge(avg_coords_chain, chain_df[['residue', 'resname']], on='residue').drop_duplicates()
+        
+        # Append the result to the list
+        avg_coords_list.append(avg_coords_chain)
 
-    # Concatenate the results into a single dataframe
-    df = pd.concat([avg_coords_a, avg_coords_b], ignore_index=True)
-    # import pdb; pdb.set_trace()
-    # df = df.groupby('residue').agg({
-    #     'resname': first_resname,
-    #     'subunit': 'mean',
-    #     'model': 'mean',
-    #     'occupancy': 'mean',
-    #     'bfactor': 'mean',
-    #     'x': 'mean',
-    #     'y': 'mean',
-    #     'z': 'mean',
-    #     'serial_number': 'mean',
-    #     'element': lambda x: list(x)
-    # }).reset_index()
+    # Concatenate all individual DataFrames into a single DataFrame
+    df = pd.concat(avg_coords_list, ignore_index=True)
+
+
+    #Replace the geometric mean coordinates with the center of mass coordinates
+    print(resid_ctr_mass_d.shape)
+    print(df.shape)
+    df[['x', 'y', 'z']] = resid_ctr_mass_d
     # import pdb; pdb.set_trace()
     
     node_pos = torch.FloatTensor(df[['x', 'y', 'z']].to_numpy())
     # Convert to numpy array
     # X = coordinates.values
-    print(node_pos)
+    # print(node_pos)
     # Calculate pairwise distances (Euclidean distance)
     knn_graph = kneighbors_graph(node_pos, n_neighbors=3, mode='distance', include_self=False)
 
@@ -189,10 +188,73 @@ def Rg(df):
     rg = math.sqrt(rr / tmass-mm)
     return(round(rg, 3))
 
+def get_residues_ctr_mass(msp_df, flatten_d=True, at_wt_type='abundant'):
+    """
+    For an MSP dataset dataframe, computes center of mass
+    (x, y, z coords) for each chain's residues. Returns a 
+    dictionary (chain:residue:xyz). Uses `atomicWeightsDecimal`
+    in `constants.py` for atomic weights used in calculation.
+
+    Note that in MSP dataframes, each row is for one atom. 
+    Hence we have 'long' format nested dataframes, and need
+    to find the `unique()` instances of chains and residues here
+    to represent the complexes at a more granular (e.g. residue)
+    level.
+    """
+    import constants as C
+    unique_chains = msp_df['chain'].unique()
+    resid_ctr_mass_d = {}
+    
+    for chain in unique_chains:
+        resid_ctr_mass_d[chain] = {}
+        # note chains have diff. nums of residues
+        unique_resid_mask = (msp_df['chain'].values == chain)
+        unique_resid = msp_df[unique_resid_mask]['residue'].unique()
+        for resid in unique_resid:
+            resid_ctr_mass_d[chain][resid] = {}
+            resid_mask = (msp_df['residue'].values == resid) & (msp_df['chain'].values == chain)
+            resid_df = msp_df.loc[resid_mask].copy()
+            resid_df['atomic_wt'] = resid_df['element'] \
+                .map(lambda el: float(C.atomicWeightsDecimal[el][at_wt_type]))
+            for dim in ('x', 'y', 'z'):
+                resid_at_wt = sum(resid_df['atomic_wt'])
+                if resid_at_wt > 0.0:
+                    dim_ctr_mass = sum(resid_df[dim] * resid_df['atomic_wt']) / resid_at_wt
+                else:
+                    print(f'Error: found residue with 0 atomic weight: chain {chain}, residue {resid}')
+                    dim_ctr_mass = 0.0
+                resid_ctr_mass_d[chain][resid][dim] = dim_ctr_mass
+                
+    if flatten_d:
+        array_l = []
+        for chain in resid_ctr_mass_d.values():
+            for residue in chain.values():
+                array = np.array([residue['x'], residue['y'], residue['z']])
+                array_l.append(array)
+        array_out = np.row_stack(array_l)
+        return array_out
+    else:
+        return resid_ctr_mass_d
 
 
 
-
+#Scrap code:
+# def first_resname(series):
+#     return series.iloc[0]
+# import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()
+# df = df.groupby('residue').agg({
+#     'resname': first_resname,
+#     'subunit': 'mean',
+#     'model': 'mean',
+#     'occupancy': 'mean',
+#     'bfactor': 'mean',
+#     'x': 'mean',
+#     'y': 'mean',
+#     'z': 'mean',
+#     'serial_number': 'mean',
+#     'element': lambda x: list(x)
+# }).reset_index()
 
 
 

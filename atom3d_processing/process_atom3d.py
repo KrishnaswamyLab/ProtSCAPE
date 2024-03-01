@@ -16,10 +16,18 @@ class Atom3dLoader:
     def progsnn_loader(self, full_dataset, data, property= None):
         dataset = []
         if data == "msp":
+            # diff = full_dataset[0]['mutated_atoms'][full_dataset[0]['mutated_atoms'].ne(full_dataset[1]['mutated_atoms']).any(axis=0)]
             # import pdb; pdb.set_trace()
             for x in tqdm(full_dataset):
                 item = x['mutated_atoms']
-                
+                # print(item['element'][2497])
+            
+                # has_na = item.isna().any().any()
+                # # Check for 0 values
+                # has_zero = (item == 0).any().any()
+                # if has_na:
+                #     print("AYO WHAT!")
+                # import pdb; pdb.set_trace()
                 if property == 'Rg':
                     rg = Rg(item)
                     node_feats, edge_index, edge_feats, pos = dev_prot_df_to_graph(item,feat_col='resname')

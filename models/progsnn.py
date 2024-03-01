@@ -2,13 +2,13 @@ import argparse
 
 import torch
 import torch.nn as nn
-from auxnetwork import str2auxnetwork
-from bottleneck_progsnn import BaseBottleneck
+from models.auxnetwork import str2auxnetwork
+from models.bottleneck_progsnn import BaseBottleneck
 from models.scatter import Scatter
 from models.transformer import PositionalEncoding, TransformerEncoder
 from torch_geometric.utils import to_dense_batch
 from torch.nn import functional as F
-from base import TGTransformerBaseModel, TGTransformerBaseModel_atom3d
+from models.base import TGTransformerBaseModel, TGTransformerBaseModel_atom3d
 
 
 class ProGSNN(TGTransformerBaseModel):
