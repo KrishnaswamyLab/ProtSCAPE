@@ -36,6 +36,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--alpha', default=0.5, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
+    parser.add_argument('--beta_loss', default=0.5, type=float)
     parser.add_argument('--n_epochs', default=40, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)
@@ -52,7 +53,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    full_dataset = DEShaw('graphs/total_graphs.pkl')
+    full_dataset = DEShaw('deshaw_processing/graphs_gb3/total_graphs.pkl')
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
@@ -103,7 +104,10 @@ if __name__ == '__main__':
     args.input_dim = train_set[0].x.shape[-1]
     print(train_set[0].x.shape[-1])
     # print(full_dataset[0][0].shape)
-    args.prot_graph_size = 660
+    args.prot_graph_size = max(
+            [item.edge_index.shape[1] for item in full_dataset])
+    print(args.prot_graph_size)
+    import pdb; pdb.set_trace()
     args.len_epoch = len(train_loader)
     # init module
     model = ProGSNN(args)

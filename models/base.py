@@ -6,7 +6,7 @@ import torch
 from pytorch_lightning.core.module import LightningModule
 
 sys.path.append('../')
-from scheduler import CosineWarmupScheduler
+from models.scheduler import CosineWarmupScheduler
 
 
 class TGTransformerBaseModel(LightningModule):
@@ -39,9 +39,9 @@ class TGTransformerBaseModel(LightningModule):
 
     def shared_step(self, batch):
         # print(batch)
-       
+        # import pdb; pdb.set_trace() 
         x, y = batch.x, batch.time
-        coords = batch.pos
+        coords = batch.coords
         # import pdb; pdb.set_trace()
         x = x.float()#, y.float()
 

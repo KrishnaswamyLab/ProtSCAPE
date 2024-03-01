@@ -127,7 +127,9 @@ class ProGSNN(TGTransformerBaseModel):
     def reconstruct(self, z_rep):
         # Reconstruct the scattering coefficients.
         z_rep_expanded = z_rep.unsqueeze(1).repeat(1, self.max_seq_len, 1)
+        # import pdb; pdb.set_trace()
         h = F.relu(self.fc1(z_rep_expanded))
+        # import pdb; pdb.set_trace()
         return self.fc2(h)
 
     def reconstruct_coords(self, coeffs):
@@ -146,13 +148,13 @@ class ProGSNN(TGTransformerBaseModel):
         coeffs = self.scattering_network(batch)
         # print(coeffs)
         # print(coeffs.shape)
-        #Scattering coefficients have shape [100,660,165] where 660 seems like the # of residues aka graph size, 165 is 11 times 15 where 15 is the # of AA.
+        #Scattering coefficients have shape [100,204,165] where 204 seems like the # of residues aka graph size, 165 is 11 times 15 where 15 is the # of AA.
         
         if len(coeffs.shape) == 2:
             coeffs = coeffs.unsqueeze(0)
 
         # print("Scattering completed!")
-        #Row transformer encoding outputs attention map of shape [100,1,660,660]
+        #Row transformer encoding outputs attention map of shape [100,1,204,204]
         row_output_embed, att_maps = self.row_transformer_encoding(coeffs)
         # print("Row output embed shape")
         # print(row_output_embed.shape)
@@ -179,6 +181,8 @@ class ProGSNN(TGTransformerBaseModel):
         coeffs_recon = self.reconstruct(z_rep)
         #Reconstruct the x,y,z coordinates from the scattering coefficients
         # print(coeffs_recon.shape)
+        # import pdb; pdb.set_trace()
+
         coords_recon = self.reconstruct_coords(coeffs_recon)
         return z_rep, coeffs, coeffs_recon, attention_maps, att_maps, coords_recon
 
