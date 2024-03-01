@@ -57,7 +57,7 @@ class MultiheadAttention(nn.Module):
     def forward(self, x, mask=None, return_attention=False):
         batch_size, seq_length, embed_dim = x.size()
         qkv = self.qkv_proj(x)
-
+        # import pdb; pdb.set_trace()
         # Separate Q, K, V from linear output
         qkv = qkv.reshape(batch_size, seq_length,
                           self.num_heads, 3 * self.head_dim)
@@ -80,6 +80,7 @@ def scaled_dot_product(q, k, v, mask=None):
     d_k = q.size()[-1]
     attn_logits = torch.matmul(q, k.transpose(-2, -1))
     attn_logits = attn_logits / math.sqrt(d_k)
+    # import pdb; pdb.set_trace()
     if mask is not None:
         attn_logits = attn_logits.masked_fill(mask == 0, -9e15)
     attention = F.softmax(attn_logits, dim=-1)

@@ -57,7 +57,7 @@ class TGTransformerBaseModel(LightningModule):
         return loss_dict
 
     def training_step(self, batch, batch_idx):
-
+        torch.set_grad_enabled(True)
         preds, targets, coeffs_recon, coeffs, coords, coords_recon = self.shared_step(batch)
 
         assert len(preds) == len(
@@ -74,7 +74,7 @@ class TGTransformerBaseModel(LightningModule):
         return train_loss
 
     def validation_step(self, batch, batch_idx):
-
+        torch.set_grad_enabled(True)
         preds, targets, coeffs_recon, coeffs, coords, coords_recon = self.shared_step(batch)
         # print(targets)
         assert len(preds) == len(
@@ -161,7 +161,7 @@ class TGTransformerBaseModel_atom3d(LightningModule):
     """
 
     def __init__(self, hparams=None):
-        super(TGTransformerBaseModel, self).__init__()
+        super(TGTransformerBaseModel_atom3d, self).__init__()
 
         if isinstance(hparams, dict):
             hparams = argparse.Namespace(**hparams)
@@ -208,8 +208,8 @@ class TGTransformerBaseModel_atom3d(LightningModule):
             targets), f'preds: {len(preds)} targs: {len(targets)}'
 
         train_loss, train_loss_logs = self.multi_loss(
-            predictions=preds, targets=targets, coeffs_recon=coeffs_recon, coeffs=coeffs, batch_idx=batch_idx,
-              coords=coords)
+            predictions=preds, targets=targets, coeffs_recon=coeffs_recon, 
+            coeffs=coeffs, batch_idx=batch_idx)
 
         train_loss_logs = self.relabel(train_loss_logs, 'train_')
 

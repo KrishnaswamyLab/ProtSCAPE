@@ -107,7 +107,7 @@ if __name__ == '__main__':
     args.prot_graph_size = max(
             [item.edge_index.shape[1] for item in full_dataset])
     print(args.prot_graph_size)
-    import pdb; pdb.set_trace()
+#     import pdb; pdb.set_trace()
     args.len_epoch = len(train_loader)
     # init module
     model = ProGSNN(args)

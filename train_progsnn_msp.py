@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 from atom3d.util.metrics import auroc
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN
+from models.progsnn import ProGSNN, ProGSNN_atom3d
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 from atom3d.datasets import LMDBDataset
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     # import pdb; pdb.set_trace()
     parser = ArgumentParser()
 
-    parser.add_argument('--dataset', default='deshaw', type=str)
+    parser.add_argument('--dataset', default='msp', type=str)
 
     parser.add_argument('--input_dim', default=None, type=int)
     parser.add_argument('--latent_dim', default=100, type=int)
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     torch.cuda.empty_cache()
 
     # full_dataset = DEShaw('graphs/total_graphs.pkl')
-    with open('data_msp.pk', 'rb') as file:
+    with open('atom3d_processing/data_msp.pk', 'rb') as file:
         full_dataset =  pickle.load(file)
     
     # full_dataset = LMDBDataset('data/msp/raw/MSP/data/')
@@ -122,7 +122,7 @@ if __name__ == '__main__':
             [item.edge_index.shape[1] for item in full_dataset])
     args.len_epoch = len(train_loader)
     # init module
-    model = ProGSNN(args)
+    model = ProGSNN_atom3d(args)
     # model.half()
     print("Training model..")
     # most basic trainer, uses good defaults
@@ -141,5 +141,5 @@ if __name__ == '__main__':
     model = model.cpu()
     model.dev_type = 'cpu'
     print('saving model')
-    torch.save(model.state_dict(), "model_MSP_RG.npy")
+    torch.save(model.state_dict(), "model_MSP.npy")
     model = model.eval()

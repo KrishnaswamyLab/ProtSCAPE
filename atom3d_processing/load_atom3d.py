@@ -113,8 +113,8 @@ def dev_prot_df_to_graph(df, feat_col, edge_dist_cutoff=4.5):
 
 
     #Replace the geometric mean coordinates with the center of mass coordinates
-    print(resid_ctr_mass_d.shape)
-    print(df.shape)
+    # print(resid_ctr_mass_d.shape)
+    # print(df.shape)
     df[['x', 'y', 'z']] = resid_ctr_mass_d
     # import pdb; pdb.set_trace()
     

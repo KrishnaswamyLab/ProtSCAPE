@@ -304,9 +304,9 @@ class Scatter(torch.nn.Module):
 
         x = x_dense.reshape(data.num_graphs, -1, self.out_shape())
 
-        mask = self.generate_graph_mask(x)
+        # mask = self.generate_graph_mask(x)
 
-        x = torch.cat((x, mask), dim=1)
+        # x = torch.cat((x, mask), dim=1)
 
         # #x = scatter_mean(x, batch, dim=0)
         # if hasattr(data, 'batch'):
