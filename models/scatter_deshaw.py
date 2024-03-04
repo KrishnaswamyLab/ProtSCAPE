@@ -225,7 +225,7 @@ def feng_filters():
     return results
 
 
-class Scatter(torch.nn.Module):
+class Scatter_deshaw(torch.nn.Module):
 
     def __init__(self, in_channels, max_graph_size, trainable_laziness=False, trainable_f=True):
 
@@ -304,9 +304,9 @@ class Scatter(torch.nn.Module):
 
         x = x_dense.reshape(data.num_graphs, -1, self.out_shape())
 
-        mask = self.generate_graph_mask(x)
+        # mask = self.generate_graph_mask(x)
 
-        x = torch.cat((x, mask), dim=1)
+        # x = torch.cat((x, mask), dim=1)
 
         # #x = scatter_mean(x, batch, dim=0)
         # if hasattr(data, 'batch'):
@@ -341,7 +341,7 @@ class TSNet(torch.nn.Module):
         self.out_channels = out_channels
         self.edge_in_channels = edge_in_channels
         self.trainable_laziness = trainable_laziness
-        self.scatter = Scatter(in_channels, trainable_laziness=trainable_laziness,
+        self.scatter = Scatter_deshaw(in_channels, trainable_laziness=trainable_laziness,
                                 trainable_f=trainable_f)
         self.lin1 = Linear(self.scatter.out_shape(), out_channels)
         self.act = torch.nn.LeakyReLU()

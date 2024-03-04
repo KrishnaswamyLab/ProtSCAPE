@@ -32,7 +32,7 @@ range_to_graphname = {'0 to 2 us': '0to2graphs',
 print("getting graphs")
 for entry in tqdm(range_to_filename.keys()):
     #warnings.filterwarnings("ignore")
-    pdbs = np.load(f"../file_names/{range_to_filename[entry]}.npy")
+    pdbs = np.load(f"../file_names_/{range_to_filename[entry]}.npy")
     # df = pd.read_csv("../datasets/pscdb/structural_rearrangement_data.csv")
 
     # pdbs = df["Free PDB"]
@@ -47,7 +47,7 @@ for entry in tqdm(range_to_filename.keys()):
     # Override config with constructors
     constructors = {
         "edge_construction_functions": [partial(add_k_nn_edges, k=3, long_interaction_threshold=0)],
-        "pdb_dir": f"/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/GB3/{entry}",
+        "pdb_dir": f"/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/BPTI/{entry}",
         #"edge_construction_functions": [add_hydrogen_bond_interactions, add_peptide_bonds],
         #"node_metadata_functions": [add_dssp_feature]
     }
@@ -58,7 +58,7 @@ for entry in tqdm(range_to_filename.keys()):
     graph_list = []
     y_list = []
     for idx, pdb in enumerate(tqdm(pdbs)):
-        path = f"/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/GB3/{entry}" + '/' + pdb
+        path = f"/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/BPTI/{entry}" + '/' + pdb
         # construct_graph(pdb_path=path,
         #                     config=config
         #                 )
@@ -92,21 +92,21 @@ for entry in tqdm(range_to_filename.keys()):
     #     else:
     #         print(i)
     #         pyg_list.remove(i)
-    with open(f"graphs_gb3/{range_to_graphname[entry]}.pkl", "wb") as file:
+    with open(f"graphs_bpti/{range_to_graphname[entry]}.pkl", "wb") as file:
         pickle.dump(pyg_list, file)
 
 print("combining data")
 total_graphs = []
-arr = os.listdir("./graphs_gb3")
+arr = os.listdir("./graphs_bpti")
 for i, entry in enumerate(tqdm(arr)):
 
     split1, split2 = entry.split('.')
     if split2 == 'pkl' and split1 != 'total_graphs':
 
-        with open("./graphs_gb3/" + entry, "rb") as file:
+        with open("./graphs_bpti/" + entry, "rb") as file:
             graphs = pickle.load(file)
             for graph in graphs:
                 total_graphs.append(graph)
 
-with open("./graphs_gb3/total_graphs.pkl", 'wb') as out:
+with open("./graphs_bpti/total_graphs.pkl", 'wb') as out:
     pickle.dump(total_graphs, out)

@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
 
     #test model
-    trained_weights = torch.load('train_logs/progsnn_logs_run_deshaw_2024-03-01-56/model.npy')
+    trained_weights = torch.load('train_logs/progsnn_logs_run_deshaw_2024-03-04-46/model.npy')
     model.load_state_dict(trained_weights)
     model = model.eval()
 

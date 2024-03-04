@@ -9,7 +9,7 @@ from models.transformer import PositionalEncoding, TransformerEncoder
 from torch_geometric.utils import to_dense_batch
 from torch.nn import functional as F
 from models.base import TGTransformerBaseModel, TGTransformerBaseModel_atom3d
-
+from models.scatter_deshaw import Scatter_deshaw
 
 class ProGSNN(TGTransformerBaseModel):
 
@@ -39,7 +39,7 @@ class ProGSNN(TGTransformerBaseModel):
         self.batch_size = hparams.batch_size
 
         # Encoder
-        self.scattering_network = Scatter(self.input_dim, self.max_seq_len, trainable_f=True)
+        self.scattering_network = Scatter_deshaw(self.input_dim, self.max_seq_len, trainable_f=True)
 
         self.pos_encoder = PositionalEncoding(
             d_model=self.scattering_network.out_shape(),
@@ -70,8 +70,8 @@ class ProGSNN(TGTransformerBaseModel):
 
         #Can we use the same regressor module for time prediction as well?
        
-        self.fc1 = nn.Linear(self.latent_dim, self.hidden_dim)
-        self.fc2 = nn.Linear(self.hidden_dim, self.scattering_network.out_shape())
+        self.fc1 = nn.Linear(self.latent_dim, 56*self.hidden_dim)
+        self.fc2 = nn.Linear(56*self.hidden_dim, 56*self.scattering_network.out_shape())
         self.fc3 = nn.Linear(self.scattering_network.out_shape(), self.hidden_dim)
         self.fc4 = nn.Linear(self.hidden_dim, 3)
         self.softmax = nn.Softmax(dim=0)
@@ -126,7 +126,7 @@ class ProGSNN(TGTransformerBaseModel):
 
     def reconstruct(self, z_rep):
         # Reconstruct the scattering coefficients.
-        z_rep_expanded = z_rep.unsqueeze(1).repeat(1, 56, 1)
+        z_rep_expanded = z_rep.unsqueeze(1)
         # import pdb; pdb.set_trace()
         h = F.relu(self.fc1(z_rep_expanded))
         # import pdb; pdb.set_trace()
@@ -179,10 +179,11 @@ class ProGSNN(TGTransformerBaseModel):
 
         # Reconstruct the scattering coefficients.
         coeffs_recon = self.reconstruct(z_rep)
+        coeffs_recon = coeffs_recon.reshape(-1, 56, self.scattering_network.out_shape())
         #Reconstruct the x,y,z coordinates from the scattering coefficients
         # print(coeffs_recon.shape)
         # import pdb; pdb.set_trace()
-
+        # print(coeffs_recon)
         coords_recon = self.reconstruct_coords(coeffs_recon)
         return z_rep, coeffs, coeffs_recon, attention_maps, att_maps, coords_recon
 
@@ -232,8 +233,16 @@ class ProGSNN(TGTransformerBaseModel):
         # y_true = torch.tensor(y_true, dtype=torch.float32)
         # print(y_pred.shape)
         # print(y_true.shape)
-
-        loss = nn.MSELoss()(y_pred.flatten(), y_true.flatten())
+        if y_true.shape[0] == 5600:
+            y_true = y_true[:5600 - (5600 % 100), :].reshape(100, -1, 3)
+        elif y_true.shape[0] == 4928:
+            y_true = y_true[:4928 - (4928 % 88), :].reshape(88, -1, 3) 
+        else:
+            y_true = y_true[:5432 - (5432 % 97), :].reshape(97, -1, 3) 
+        # import pdb; pdb.set_trace()
+        # print(y_pred.shape)
+        # print(y_true.shape)
+        loss = nn.MSELoss()(y_pred, y_true)
         print("loss: {}".format(loss))
         return loss
 

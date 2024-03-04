@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 from atom3d.util.metrics import auroc
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN
+from models.progsnn import ProGSNN, ProGSNN_atom3d
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 from atom3d.datasets import LMDBDataset
@@ -37,6 +37,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--alpha', default=0.5, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
+    parser.add_argument('--beta_loss', default=0.5, type=float)
     parser.add_argument('--n_epochs', default=10, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)
@@ -54,7 +55,7 @@ if __name__ == '__main__':
 
 
     # full_dataset = DEShaw('graphs/total_graphs.pkl')
-    with open('data_msp.pk', 'rb') as file:
+    with open('atom3d_processing/data_msp.pk', 'rb') as file:
         full_dataset =  pickle.load(file)
     
     # full_dataset = LMDBDataset('data/msp/raw/MSP/data/')
@@ -121,7 +122,7 @@ if __name__ == '__main__':
             [item.edge_index.shape[1] for item in full_dataset])
     args.len_epoch = len(train_loader)
     # init module
-    model = ProGSNN(args)
+    model = ProGSNN_atom3d(args)
     # # model.half()
     # print("Training model..")
     # # most basic trainer, uses good defaults
@@ -165,7 +166,7 @@ if __name__ == '__main__':
     print('test predictions shape')
     print(test_predictions.shape)
     print("Saving test predictions..")
-    with open('test_preds.pkl', 'wb') as file:
+    with open('test_preds_msp.pkl', 'wb') as file:
         pickle.dump(test_predictions, file)
     # test_auroc = auroc(test_targets, test_predictions)
     # wandb_logger.log_metrics({'test_auroc': test_auroc})    
