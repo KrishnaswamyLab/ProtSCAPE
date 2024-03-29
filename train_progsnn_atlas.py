@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
 
-    parser.add_argument('--dataset', default='deshaw', type=str)
+    parser.add_argument('--dataset', default='atlas', type=str)
 
     parser.add_argument('--input_dim', default=None, type=int)
     parser.add_argument('--latent_dim', default=128, type=int)
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--nhead', default=1)
     parser.add_argument('--layers', default=1)
     parser.add_argument('--task', default='reg')
-    parser.add_argument('--batch_size', default=100, type=int)
+    parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--n_gpus', default=1, type=int)
     parser.add_argument('--save_dir', default='train_logs/', type=str)
 
@@ -53,14 +53,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    full_dataset = DEShaw('deshaw_processing/graphs_gb3/total_graphs.pkl')
+    with open('1ab1_A_analysis/graphs.pkl', 'rb') as file:
+        full_dataset =  pickle.load(file)
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
     # print(len(full_dataset))
     # print(type(full_dataset))
     # print(full_dataset[0])
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     # train loader
     train_loader = DataLoader(train_set, batch_size=args.batch_size,
                                         shuffle=True, num_workers=15)
@@ -128,7 +129,7 @@ if __name__ == '__main__':
     model = model.cpu()
     model.dev_type = 'cpu'
     print('saving model')
-    torch.save(model.state_dict(), save_dir + "model.npy")
+    torch.save(model.state_dict(), save_dir + "model_atlas.npy")
     
 
     residual_attention = []

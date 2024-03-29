@@ -162,7 +162,7 @@ if __name__ == '__main__':
     #Apply sigmoid or softmax to the predictions
     print("Test predictions: ")
     print(test_predictions)
-    test_predictions = torch.softmax(test_predictions)
+    # test_predictions = torch.softmax(test_predictions)
     print('test predictions shape')
     print(test_predictions.shape)
     print("Saving test predictions..")

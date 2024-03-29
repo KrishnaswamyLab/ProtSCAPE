@@ -53,7 +53,7 @@ class ProGSNN(TGTransformerBaseModel):
             dropout=self.probs)
 
         self.col_encoder = TransformerEncoder(num_layers=self.layers,
-                                              input_dim=56,
+                                              input_dim=46,
                                               num_heads=self.nhead,
                                               dim_feedforward=self.hidden_dim,
                                               dropout=self.probs)
@@ -70,8 +70,8 @@ class ProGSNN(TGTransformerBaseModel):
 
         #Can we use the same regressor module for time prediction as well?
        
-        self.fc1 = nn.Linear(self.latent_dim, 56*self.hidden_dim)
-        self.fc2 = nn.Linear(56*self.hidden_dim, 56*self.scattering_network.out_shape())
+        self.fc1 = nn.Linear(self.latent_dim, 46*self.hidden_dim)
+        self.fc2 = nn.Linear(46*self.hidden_dim, 46*self.scattering_network.out_shape())
         self.fc3 = nn.Linear(self.scattering_network.out_shape(), self.hidden_dim)
         self.fc4 = nn.Linear(self.hidden_dim, 3)
         self.softmax = nn.Softmax(dim=0)
@@ -153,14 +153,14 @@ class ProGSNN(TGTransformerBaseModel):
         if len(coeffs.shape) == 2:
             coeffs = coeffs.unsqueeze(0)
         # import pdb; pdb.set_trace()
-        # print("Scattering completed!")
+        print("Scattering completed!")
         #Row transformer encoding outputs attention map of shape [100,1,204,204]
         row_output_embed, att_maps = self.row_transformer_encoding(coeffs)
         # print("Row output embed shape")
         # print(row_output_embed.shape)
         #Col transformer encoding outputs attention map of shape [100,1,165,165]
         #We want to average over the 11 channels to get an attention map of [100,1,15,15]
-        
+        # import pdb; pdb.set_trace() 
         col_output_embed, attention_maps = self.col_transformer_encoding(coeffs)
         # print("col output embed shape")
         # print(col_output_embed.shape)
@@ -170,7 +170,7 @@ class ProGSNN(TGTransformerBaseModel):
         z_rep = output_embed.sum(1)
         # print("Latent representations shape")
         # print(z_rep.shape)
-
+        
         # To regain the batch dimension
         if len(z_rep.shape) == 1:
             z_rep = z_rep.unsqueeze(0)
@@ -179,7 +179,7 @@ class ProGSNN(TGTransformerBaseModel):
 
         # Reconstruct the scattering coefficients.
         coeffs_recon = self.reconstruct(z_rep)
-        coeffs_recon = coeffs_recon.reshape(-1, 56, self.scattering_network.out_shape())
+        coeffs_recon = coeffs_recon.reshape(-1, 46, self.scattering_network.out_shape())
         #Reconstruct the x,y,z coordinates from the scattering coefficients
         # print(coeffs_recon.shape)
         # import pdb; pdb.set_trace()
@@ -233,6 +233,7 @@ class ProGSNN(TGTransformerBaseModel):
         # y_true = torch.tensor(y_true, dtype=torch.float32)
         # print(y_pred.shape)
         # print(y_true.shape)
+        
         if y_true.shape[0] == 5600:
             y_true = y_true[:5600 - (5600 % 100), :].reshape(100, -1, 3)
         elif y_true.shape[0] == 4928:
@@ -374,8 +375,9 @@ class ProGSNN_atom3d(TGTransformerBaseModel_atom3d):
 
     def reconstruct(self, z_rep):
         # Reconstruct the scattering coefficients.
+        # import pdb; pdb.set_trace()
         z_rep_expanded = z_rep.unsqueeze(1).repeat(1, self.max_seq_len, 1)
-        h = F.relu(self.fc1(z_rep_expanded))
+        h = F.relu(self.fc1(z_rep))
         return self.fc2(h)
 
     # def reconstruct_coords(self, coeffs):

@@ -53,7 +53,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    full_dataset = DEShaw('deshaw_processing/graphs_gb3/total_graphs.pkl')
+    with open('1ab1_A_analysis/graphs.pkl', 'rb') as file:
+        full_dataset =  pickle.load(file)
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
@@ -118,31 +119,31 @@ if __name__ == '__main__':
 
 
     #test model
-    trained_weights = torch.load('train_logs/progsnn_logs_run_deshaw_2024-03-06-26/model.npy')
+    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-03-29-01/model_atlas.npy')
     model.load_state_dict(trained_weights)
     model = model.eval()
 
     # import pdb; pdb.set_trace()
     # get test set prediction
-    test_targets = np.array([data.coords for data in val_set])
-    test_predictions = []
+    times = np.array([data.time for data in train_set])
+    test_latent = []
 
     with torch.no_grad():
-        for x in tqdm(valid_loader):
+        for x in tqdm(train_loader):
             print("Looping through test set..")
-            y_hat = model(x)[6]
-            test_predictions.append(y_hat)
+            z_rep = model(x)[1]
+            test_latent.append(z_rep)
     
-    test_predictions = torch.cat(test_predictions, dim=0)
+    test_predictions = torch.cat(test_latent, dim=0)
     print("Test predictions: ")
     print(test_predictions)
     print('test predictions shape')
     print(test_predictions.shape)
-    print("Saving test predictions..")
-    with open('test_preds.pkl', 'wb') as file:
+    print("Saving latent reps..")
+    with open('test_latent.pkl', 'wb') as file:
         pickle.dump(test_predictions, file)
     
-    print("Saving test targets..")
-    with open('test_targets.pkl', 'wb') as file:
-        pickle.dump(test_targets, file)
+    print("Saving times..")
+    with open('times.pkl', 'wb') as file:
+        pickle.dump(times, file)
     

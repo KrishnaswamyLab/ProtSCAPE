@@ -35,7 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--embedding_dim', default=80, type=int)
     parser.add_argument('--lr', default=0.001, type=float)
 
-    parser.add_argument('--alpha', default=0.5, type=float)
+    parser.add_argument('--alpha', default=0, type=float)
     parser.add_argument('--beta_loss', default=0.5, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
     parser.add_argument('--n_epochs', default=10, type=int)

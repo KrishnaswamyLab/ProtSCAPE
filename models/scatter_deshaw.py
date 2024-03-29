@@ -314,7 +314,7 @@ class Scatter_deshaw(torch.nn.Module):
         # else:
         #     x = scatter_moments(x, torch.zeros(data.x.shape[0], dtype=torch.int32), 4)
         #     # print('x returned shape', x.shape)
-
+        # print("Going here")
         if return_f_matrix:
             return x, self.wavelet_constructor
         else:

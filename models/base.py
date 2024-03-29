@@ -98,15 +98,16 @@ class TGTransformerBaseModel(LightningModule):
         recon_loss = self.recon_loss(predictions=coeffs_recon, targets=coeffs)
 
         #reconstruction of coordinates loss
-        recon_coords_loss = self.recon_coords_loss(predictions=coords_recon, targets=coords)
+        # recon_coords_loss = self.recon_coords_loss(predictions=coords_recon, targets=coords)
 
-        total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + (1-self.alpha-self.beta_loss) * recon_coords_loss
+        # total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + (1-self.alpha-self.beta_loss) * recon_coords_loss
+        total_loss = self.alpha*main_loss + recon_loss #+ recon_coords_loss
 
         log_losses = {
             'loss': total_loss.detach(),
             'main_loss': main_loss.detach(),
             'recon_loss': recon_loss.detach(),
-            'recon_coords_loss': recon_coords_loss.detach(),
+            #'recon_coords_loss': recon_coords_loss.detach(),
         }
 
         return total_loss, log_losses
