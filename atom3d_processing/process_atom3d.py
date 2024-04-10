@@ -45,6 +45,6 @@ class Atom3dLoader:
 if __name__ == '__main__':
     data = Atom3dLoader('../data/raw/MSP/data/')
     full_data = data.load_data()
-    data = data.progsnn_loader(full_data, data='msp')
-    with open('data_msp.pk', 'wb') as f:
+    data = data.progsnn_loader(full_data, data='msp', property='Rg')
+    with open('data_msp_rg.pk', 'wb') as f:
         pickle.dump(data, f)

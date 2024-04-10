@@ -43,7 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--probs', default=0.2)
     parser.add_argument('--nhead', default=1)
     parser.add_argument('--layers', default=1)
-    parser.add_argument('--task', default='bin_class')
+    parser.add_argument('--task', default='reg')
     parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--n_gpus', default=1, type=int)
     parser.add_argument('--save_dir', default='train_logs/', type=str)
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     torch.cuda.empty_cache()
     
     # full_dataset = DEShaw('graphs/total_graphs.pkl')
-    with open('atom3d_processing/data_msp.pk', 'rb') as file:
+    with open('atom3d_processing/data_msp_rg.pk', 'rb') as file:
         full_dataset =  pickle.load(file)
     
     # full_dataset = LMDBDataset('data/msp/raw/MSP/data/')
@@ -63,9 +63,9 @@ if __name__ == '__main__':
     # full_dataset = [x for x in full_dataset if x.num_nodes < 1000]
     # print(len(full_dataset))
     #Convert the list of 0s and 1s target strings to integers and a torch tensor FOR MSP PREDICTIONS
-    for data in full_dataset:
-        y = torch.tensor([int(label) for label in data.y]).float()
-        data.y = y
+    # for data in full_dataset:
+    #     y = torch.tensor([int(label) for label in data.y]).float()
+    #     data.y = y
     
     # import pdb; pdb.set_trace()
     train_size = int(0.8 * len(full_dataset))
@@ -141,5 +141,5 @@ if __name__ == '__main__':
     model = model.cpu()
     model.dev_type = 'cpu'
     print('saving model')
-    torch.save(model.state_dict(), "model_MSP.npy")
+    torch.save(model.state_dict(), "model_MSP_Rg.npy")
     model = model.eval()

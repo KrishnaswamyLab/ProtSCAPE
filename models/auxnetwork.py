@@ -14,6 +14,8 @@ class BaseRegressor(nn.Module):
 
         self.fc1 = nn.Linear(latent_dim, 64)
         self.fc2 = nn.Linear(64, 1)
+        #----CHANGED TO 46 ONLY FOR ATLAS (SASA) DATASET"
+        # self.fc2 = nn.Linear(64, 46)
         self.nonlin = nn.ReLU()
 
     def forward(self, z):

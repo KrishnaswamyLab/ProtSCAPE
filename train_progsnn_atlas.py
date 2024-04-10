@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN
+from models.progsnn import ProGSNN_ATLAS
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 
@@ -53,8 +53,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    with open('1ab1_A_analysis/graphs.pkl', 'rb') as file:
+    with open('1ab1_A_analysis/graphsrmsd.pkl', 'rb') as file:
         full_dataset =  pickle.load(file)
+
+    for data in full_dataset:
+        y = float(data.y)
+        data.y = y
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
@@ -111,7 +115,7 @@ if __name__ == '__main__':
 #     import pdb; pdb.set_trace()
     args.len_epoch = len(train_loader)
     # init module
-    model = ProGSNN(args)
+    model = ProGSNN_ATLAS(args)
 
     # most basic trainer, uses good defaults
     trainer = pl.Trainer(
@@ -129,7 +133,7 @@ if __name__ == '__main__':
     model = model.cpu()
     model.dev_type = 'cpu'
     print('saving model')
-    torch.save(model.state_dict(), save_dir + "model_atlas.npy")
+    torch.save(model.state_dict(), save_dir + "model_atlas_rmsd.npy")
     
 
     residual_attention = []

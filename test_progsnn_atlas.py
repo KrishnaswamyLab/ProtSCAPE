@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN
+from models.progsnn import ProGSNN_ATLAS
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 
@@ -53,8 +53,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    with open('1ab1_A_analysis/graphs.pkl', 'rb') as file:
+    with open('1ab1_A_analysis/graphsrmsd.pkl', 'rb') as file:
         full_dataset =  pickle.load(file)
+
+    for data in full_dataset:
+        y = float(data.y)
+        data.y = y
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
@@ -100,10 +104,10 @@ if __name__ == '__main__':
     args.prot_graph_size = max(
             [item.edge_index.shape[1] for item in full_dataset])
     print(args.prot_graph_size)
-#     import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     args.len_epoch = len(train_loader)
     # init module
-    model = ProGSNN(args)
+    model = ProGSNN_ATLAS(args)
 
     # # most basic trainer, uses good defaults
     # trainer = pl.Trainer(
@@ -119,31 +123,44 @@ if __name__ == '__main__':
 
 
     #test model
-    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-03-29-01/model_atlas.npy')
+    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-04-10-46/model_atlas_rmsd.npy')
     model.load_state_dict(trained_weights)
     model = model.eval()
-
+    attention_maps_col = []
+    attention_maps_row = []
     # import pdb; pdb.set_trace()
     # get test set prediction
     times = np.array([data.time for data in train_set])
     test_latent = []
 
     with torch.no_grad():
-        for x in tqdm(train_loader):
+        for x in tqdm(valid_loader):
             print("Looping through test set..")
-            z_rep = model(x)[1]
-            test_latent.append(z_rep)
+            y_hat, _, _, _, att_map_col, att_map_row,_ = model(x)
+            # import pdb; pdb.set_trace()
+            attention_maps_col.append(att_map_col)
+            attention_maps_row.append(att_map_row)
+            test_latent.append(y_hat)
     
+    # import pdb; pdb.set_trace()
     test_predictions = torch.cat(test_latent, dim=0)
+    # import pdb; pdb.set_trace()
     print("Test predictions: ")
     print(test_predictions)
     print('test predictions shape')
     print(test_predictions.shape)
-    print("Saving latent reps..")
-    with open('test_latent.pkl', 'wb') as file:
+    print("Saving test predictions..")
+    with open('test_atlas_rmsd_valid.pkl', 'wb') as file:
         pickle.dump(test_predictions, file)
     
-    print("Saving times..")
-    with open('times.pkl', 'wb') as file:
-        pickle.dump(times, file)
+    print("Saving row attention maps..")
+    with open('row_attn_atlas.pkl', 'wb') as file:
+        pickle.dump(attention_maps_row, file)
+    
+    print("Saving col attention maps..")
+    with open('col_attn_atlas.pkl', 'wb') as file:
+        pickle.dump(attention_maps_col, file)
+    # print("Saving times..")
+    # with open('times.pkl', 'wb') as file:
+    #     pickle.dump(times, file)
     

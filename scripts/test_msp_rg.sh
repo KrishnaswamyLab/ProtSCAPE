@@ -1,15 +1,15 @@
 #!/bin/bash
 
-#SBATCH --job-name=progsnn_atlas
+#SBATCH --job-name=test_rg
 #SBATCH --time=20:00:00
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --mem=128G
+#SBATCH --mem=20G
 #SBATCH --output=./logs/slurm/%x_%j.out
 #SBATCH --error=./logs/slurm/%x_%j.err
 cd ~/project/ProGSNN-2
 module load miniconda
 conda activate mfcn
 
-python train_progsnn_atlas.py
+python test_progsnn_msp_rg.py
