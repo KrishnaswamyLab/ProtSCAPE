@@ -47,6 +47,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--n_gpus', default=1, type=int)
     parser.add_argument('--save_dir', default='train_logs/', type=str)
+    
 
     # add args from trainer
     # parser = pl.Trainer.add_argparse_args(parser)
@@ -121,6 +122,7 @@ if __name__ == '__main__':
     args.prot_graph_size = max(
             [item.edge_index.shape[1] for item in full_dataset])
     args.len_epoch = len(train_loader)
+    
     # init module
     model = ProGSNN_atom3d(args)
     # # model.half()

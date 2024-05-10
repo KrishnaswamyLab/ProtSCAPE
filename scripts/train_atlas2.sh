@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=gpu_progsnn_msp
+#SBATCH --job-name=1bxy
 #SBATCH --time=20:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
@@ -12,4 +12,4 @@ cd ~/project/ProGSNN-2
 module load miniconda
 conda activate mfcn
 
-python train_progsnn_msp.py
+python train_progsnn_atlas.py --protein "1bxy"

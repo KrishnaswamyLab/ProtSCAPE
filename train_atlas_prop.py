@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import datetime
 import os
 import numpy as np
-from tqdm import tqdm
+
 import torch
 import torch.utils.data
 from torch import nn
@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN_ATLAS
+from models.progsnn import ProGSNN_ATLAS_prop
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 
@@ -26,10 +26,10 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
 
-    parser.add_argument('--dataset', default='deshaw', type=str)
+    parser.add_argument('--dataset', default='atlas', type=str)
 
     parser.add_argument('--input_dim', default=None, type=int)
-    parser.add_argument('--latent_dim', default=64, type=int)
+    parser.add_argument('--latent_dim', default=128, type=int)
     parser.add_argument('--hidden_dim', default=256, type=int)
     parser.add_argument('--embedding_dim', default=128, type=int)
     parser.add_argument('--lr', default=0.001, type=float)
@@ -37,7 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('--alpha', default=2, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
     parser.add_argument('--beta_loss', default=0.5, type=float)
-    parser.add_argument('--n_epochs', default=40, type=int)
+    parser.add_argument('--n_epochs', default=1000, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)
     parser.add_argument('--nhead', default=1)
@@ -53,7 +53,6 @@ if __name__ == '__main__':
     # parse params 
     args = parser.parse_args()
 
-
     #55 residues
     if args.protein == '1bx7':
         #Change to analyis of 1bgf_A_protein
@@ -67,21 +66,19 @@ if __name__ == '__main__':
     if args.protein == '1bxy':
         with open('1bxy_A_analysis/graphsrog.pkl', 'rb') as file:
             full_dataset =  pickle.load(file)
-    if args.protein == '1ptq':
-        with open('1ptq_A_analysis/graphsrog.pkl', 'rb') as file:
-            full_dataset =  pickle.load(file)
-    if args.protein == '1fd3':
-        with open('1fd3_A_analysis/graphsrog.pkl', 'rb') as file:
-            full_dataset =  pickle.load(file)
-
+    
+    # import pdb; pdb.set_trace()
+    #-----FOR RMSD DATASET-----#    
     # for data in full_dataset:
     #     y = float(data.y)
     #     data.y = y
+    #--------------------------#
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
+    # train loader
     train_loader = DataLoader(train_set, batch_size=args.batch_size,
-                                        shuffle=False, num_workers=15)
+                                        shuffle=True, num_workers=15)
     # valid loader 
     valid_loader = DataLoader(val_set, batch_size=args.batch_size,
                                         shuffle=False, num_workers=15)
@@ -98,7 +95,7 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     
-    wandb_logger = WandbLogger(name='run_progsnn',
+    wandb_logger = WandbLogger(name=f'atlas_{args.protein}_prop',
                                 project='progsnn', 
                                 log_model=True,
                                 save_dir=save_dir)
@@ -109,79 +106,92 @@ if __name__ == '__main__':
     # print(train_loader)
     # print([item for item in full_dataset])
     # early stopping 
-    early_stop_callback = EarlyStopping(
-            monitor='val_loss',
-            min_delta=0.00,
-            patience=5,
-            verbose=True,
-            mode='min'
-            )
+    # early_stop_callback = EarlyStopping(
+    #         monitor='val_loss',
+    #         min_delta=0.00,
+    #         patience=5,
+    #         verbose=True,
+    #         mode='min'
+    #         )
+    # print(len(val_set))
+    # args.input_dim = len(train_set)
+    # print()
     args.input_dim = train_set[0].x.shape[-1]
     print(train_set[0].x.shape[-1])
     # print(full_dataset[0][0].shape)
     args.prot_graph_size = max(
             [item.edge_index.shape[1] for item in full_dataset])
     print(args.prot_graph_size)
-    # import pdb; pdb.set_trace()
+#     import pdb; pdb.set_trace()
     args.len_epoch = len(train_loader)
-
+    import pdb; pdb.set_trace()
+    #Set number of residues args here
     args.residue_num = full_dataset[0].x.shape[0]
     # init module
-    model = ProGSNN_ATLAS(args)
+    model = ProGSNN_ATLAS_prop(args)
 
-    # # most basic trainer, uses good defaults
-    # trainer = pl.Trainer(
-    #                     max_epochs=args.n_epochs,
-    #                     #gpus=args.n_gpus,
-    #                     callbacks=[early_stop_callback],
-    #                     logger = wandb_logger
-    #                     )
-    # trainer.fit(model=model,
-    #             train_dataloaders=train_loader,
-    #             val_dataloaders=valid_loader,
-    #             )
+    # most basic trainer, uses good defaults
+    trainer = pl.Trainer(
+                        max_epochs=args.n_epochs,
+                        devices = "auto",
+                        #gpus=args.n_gpus,
+                        #callbacks=[early_stop_callback],
+                        logger = wandb_logger
+                        )
+    trainer.fit(model=model,
+                train_dataloaders=train_loader,
+                val_dataloaders=valid_loader,
+                )
+
+    
+    model = model.cpu()
+    model.dev_type = 'cpu'
+    print('saving model')
+    torch.save(model.state_dict(), save_dir + f"model_atlas_{args.protein}_prop.npy")
+    
+
+    residual_attention = []
+    embeddings = []
+    print(len(full_dataset))
+    # with torch.no_grad():
+    #     loss = model.get_loss_list()
+    #     for batch in full_loader:
+    #         y_pred, z_rep, coeffs, coeffs_recon, attention_maps, att_maps_res = model(batch)
+    #         # att_maps = []
+    #         # print(len(att_maps_res))
+    #         print(att_maps_res[0].shape)
+    #         # print(att_maps_res[0].shape)
+    #         # for i in range(len(att_maps_res)):
+    #         #     #loops over 3 layers of attention and hence we get 3 attention maps: 1 for each layer
+
+    #         #     att_maps.append(att_maps_res[i].mean(dim = (0,1))) 
+    #         # print(att_maps_res[0].shape)
+    #         # print(len(att_maps))
+    #         # print(att_maps[5].shape)
+    #         # print(attention_maps[0].shape)
+    #         residual_attention.append(att_maps_res[0])
+    #         # print(residual_attention[0][0].shape)
+    #         # x = np.vstack(residual_attention)
+    #         # print(x.shape)
+    #         # print(len(residual_attention))
+    #         embeddings.append(z_rep)
+
+    # print('saving reconstruction loss')
+    # loss = np.array(loss)
+    # np.save(save_dir + "reg_loss_list.npy", loss)
+    
+    # print('saving attention map')
+    # # residual_attention = np.stack(residual_attention)
+    # # np.save(save_dir + "attention_maps.npy", residual_attention)
+    # with open('attention.pkl', 'wb') as file:
+    #     pickle.dump(residual_attention, file)
+
+    
+    # print('saving embeddings')
+    # embeddings = np.array(embeddings)
+    # np.save(save_dir + "embeddings.npy", embeddings)  
+
+    
 
 
-    #test model
-    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-05-09-18/model_atlas_1bx7.npy')
-    model.load_state_dict(trained_weights)
-    model = model.eval()
-    attention_maps_col = []
-    attention_maps_row = []
-    # import pdb; pdb.set_trace()
-    # get test set prediction
-    times = np.array([data.time for data in full_dataset])
-    test_latent = []
-    latent_embeddings = []
-    coords_recon_lst = []
-    with torch.no_grad():
-        for x in tqdm(full_loader):
-            print("Looping through test set..")
-            y_hat, z_rep, _, _, _, att_map_row,coords_recon = model(x)
-            # import pdb; pdb.set_trace()
-            
-            # attention_maps_col.append(att_map_col)
-            attention_maps_row.append(att_map_row)
-            coords_recon_lst.append(coords_recon)
-            test_latent.append(y_hat)
-            latent_embeddings.append(z_rep)
-    
-    print(test_latent)
-    test_predictions = torch.cat(test_latent, dim=0)
-    
-    print("Saving attention maps..")
-    with open(f'attention_maps_{args.protein}.pkl', 'wb') as file:
-        pickle.dump(attention_maps_row, file)
-    
-    # print("Saving latent embeddings..")
-    # with open(f'latent_embeddings{args.protein}.pkl', 'wb') as file:
-    #     pickle.dump(latent_embeddings, file)
-    
-    # print("Saving times..")
-    # with open(f'times_{args.protein}.pkl', 'wb') as file:
-    #     pickle.dump(times, file)
-    
-    # print("Saving coordinates..")
-    # with open(f'coords_{args.protein}.pkl', 'wb') as file:
-    #     pickle.dump(coords_recon_lst, file)
-    
+        

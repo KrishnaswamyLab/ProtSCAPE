@@ -29,15 +29,15 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', default='deshaw', type=str)
 
     parser.add_argument('--input_dim', default=None, type=int)
-    parser.add_argument('--latent_dim', default=128, type=int)
+    parser.add_argument('--latent_dim', default=64, type=int)
     parser.add_argument('--hidden_dim', default=256, type=int)
     parser.add_argument('--embedding_dim', default=128, type=int)
     parser.add_argument('--lr', default=0.001, type=float)
 
-    parser.add_argument('--alpha', default=0.5, type=float)
+    parser.add_argument('--alpha', default=1e-4, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
     parser.add_argument('--beta_loss', default=0.5, type=float)
-    parser.add_argument('--n_epochs', default=40, type=int)
+    parser.add_argument('--n_epochs', default=100, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)
     parser.add_argument('--nhead', default=1)
@@ -118,31 +118,42 @@ if __name__ == '__main__':
 
 
     #test model
-    trained_weights = torch.load('train_logs/progsnn_logs_run_deshaw_2024-03-06-26/model.npy')
+    trained_weights = torch.load('train_logs/progsnn_logs_run_deshaw_2024-04-17-21/model_deshaw.npy')
     model.load_state_dict(trained_weights)
     model = model.eval()
 
     # import pdb; pdb.set_trace()
     # get test set prediction
-    test_targets = np.array([data.coords for data in val_set])
-    test_predictions = []
-
+    times = np.array([data.time for data in train_set])
+    test_latent = []
+    latent_embeddings = []
     with torch.no_grad():
-        for x in tqdm(valid_loader):
+        for x in tqdm(train_loader):
             print("Looping through test set..")
-            y_hat = model(x)[6]
-            test_predictions.append(y_hat)
+            y_hat, z_rep, _, _, _, _,_ = model(x)
+            # import pdb; pdb.set_trace()
+            # attention_maps_col.append(att_map_col)
+            # attention_maps_row.append(att_map_row)
+            test_latent.append(y_hat)
+            latent_embeddings.append(z_rep)
     
-    test_predictions = torch.cat(test_predictions, dim=0)
+    print(test_latent)
+    # import pdb; pdb.set_trace()
+    test_predictions = torch.cat(test_latent, dim=0)
+    # import pdb; pdb.set_trace()
     print("Test predictions: ")
     print(test_predictions)
     print('test predictions shape')
     print(test_predictions.shape)
     print("Saving test predictions..")
-    with open('test_preds.pkl', 'wb') as file:
+    with open('test_deshaw.pkl', 'wb') as file:
         pickle.dump(test_predictions, file)
     
-    print("Saving test targets..")
-    with open('test_targets.pkl', 'wb') as file:
-        pickle.dump(test_targets, file)
+    print("Saving latent embeddings..")
+    with open('latent_embeddings_deshaw.pkl', 'wb') as file:
+        pickle.dump(latent_embeddings, file)
+    
+    print("Saving times..")
+    with open('times_deshaw.pkl', 'wb') as file:
+        pickle.dump(times, file)
     

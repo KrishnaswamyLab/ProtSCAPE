@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --partition=gpu
 #SBATCH --gpus=1
-#SBATCH --mem=20G
+#SBATCH --mem=40G
 #SBATCH --output=./logs/slurm/%x_%j.out
 #SBATCH --error=./logs/slurm/%x_%j.err
 cd ~/project/ProGSNN-2

@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN_ATLAS
+from models.progsnn import ProGSNN_ATLAS_prop
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 
@@ -66,12 +66,6 @@ if __name__ == '__main__':
     #60 residues
     if args.protein == '1bxy':
         with open('1bxy_A_analysis/graphsrog.pkl', 'rb') as file:
-            full_dataset =  pickle.load(file)
-    if args.protein == '1ptq':
-        with open('1ptq_A_analysis/graphsrog.pkl', 'rb') as file:
-            full_dataset =  pickle.load(file)
-    if args.protein == '1fd3':
-        with open('1fd3_A_analysis/graphsrog.pkl', 'rb') as file:
             full_dataset =  pickle.load(file)
 
     # for data in full_dataset:
@@ -127,7 +121,7 @@ if __name__ == '__main__':
 
     args.residue_num = full_dataset[0].x.shape[0]
     # init module
-    model = ProGSNN_ATLAS(args)
+    model = ProGSNN_ATLAS_prop(args)
 
     # # most basic trainer, uses good defaults
     # trainer = pl.Trainer(
@@ -143,45 +137,28 @@ if __name__ == '__main__':
 
 
     #test model
-    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-05-09-18/model_atlas_1bx7.npy')
+    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-04-19-46/model_atlas_1bxy_prop.npy')
     model.load_state_dict(trained_weights)
     model = model.eval()
-    attention_maps_col = []
-    attention_maps_row = []
     # import pdb; pdb.set_trace()
     # get test set prediction
-    times = np.array([data.time for data in full_dataset])
     test_latent = []
-    latent_embeddings = []
-    coords_recon_lst = []
     with torch.no_grad():
-        for x in tqdm(full_loader):
+        for x in tqdm(valid_loader):
             print("Looping through test set..")
-            y_hat, z_rep, _, _, _, att_map_row,coords_recon = model(x)
-            # import pdb; pdb.set_trace()
-            
-            # attention_maps_col.append(att_map_col)
-            attention_maps_row.append(att_map_row)
-            coords_recon_lst.append(coords_recon)
+            y_hat, z_rep, _, _, _, _,_ = model(x)
             test_latent.append(y_hat)
-            latent_embeddings.append(z_rep)
     
     print(test_latent)
+    # import pdb; pdb.set_trace()
     test_predictions = torch.cat(test_latent, dim=0)
+    # import pdb; pdb.set_trace()
+    print("Test predictions: ")
+    print(test_predictions)
+    print('test predictions shape')
+    print(test_predictions.shape)
+    print("Saving test predictions..")
+    with open(f'test_atlas_{args.protein}.pkl', 'wb') as file:
+        pickle.dump(test_predictions, file)
     
-    print("Saving attention maps..")
-    with open(f'attention_maps_{args.protein}.pkl', 'wb') as file:
-        pickle.dump(attention_maps_row, file)
-    
-    # print("Saving latent embeddings..")
-    # with open(f'latent_embeddings{args.protein}.pkl', 'wb') as file:
-    #     pickle.dump(latent_embeddings, file)
-    
-    # print("Saving times..")
-    # with open(f'times_{args.protein}.pkl', 'wb') as file:
-    #     pickle.dump(times, file)
-    
-    # print("Saving coordinates..")
-    # with open(f'coords_{args.protein}.pkl', 'wb') as file:
-    #     pickle.dump(coords_recon_lst, file)
     

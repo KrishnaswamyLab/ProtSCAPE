@@ -1,5 +1,5 @@
 from torch import nn
-
+from torch.nn import functional as F
 
 class BaseBottleneck(nn.Module):
     """Basic fcn bottleneck
@@ -8,10 +8,12 @@ class BaseBottleneck(nn.Module):
         nn ([type]): [description]
     """
 
-    def __init__(self, input_dim, bottleneck_dim):
+    def __init__(self, input_dim, hidden_dim, bottleneck_dim):
         super(BaseBottleneck, self).__init__()
 
-        self.fc1 = nn.Linear(input_dim, bottleneck_dim)
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
+        self.fc3 = nn.Linear(hidden_dim, bottleneck_dim)
 
     def forward(self, h):
         """
@@ -23,6 +25,8 @@ class BaseBottleneck(nn.Module):
         output_dim: b x z
         """
 
-        z_rep = self.fc1(h)
+        z_rep = F.relu(self.fc1(h))
+        z_rep = F.relu(self.fc2(z_rep))
+        z_rep = self.fc3(z_rep)
 
         return z_rep

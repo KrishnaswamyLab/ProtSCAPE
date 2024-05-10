@@ -35,16 +35,16 @@ if __name__ == '__main__':
     parser.add_argument('--embedding_dim', default=80, type=int)
     parser.add_argument('--lr', default=0.001, type=float)
 
-    parser.add_argument('--alpha', default=0, type=float)
+    parser.add_argument('--alpha', default=1e-3, type=float)
     parser.add_argument('--beta_loss', default=0.5, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
-    parser.add_argument('--n_epochs', default=10, type=int)
+    parser.add_argument('--n_epochs', default=200, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)
     parser.add_argument('--nhead', default=1)
     parser.add_argument('--layers', default=1)
     parser.add_argument('--task', default='bin_class')
-    parser.add_argument('--batch_size', default=1, type=int)
+    parser.add_argument('--batch_size', default=10, type=int)
     parser.add_argument('--n_gpus', default=1, type=int)
     parser.add_argument('--save_dir', default='train_logs/', type=str)
 
@@ -58,10 +58,6 @@ if __name__ == '__main__':
     with open('atom3d_processing/data_msp.pk', 'rb') as file:
         full_dataset =  pickle.load(file)
     
-    # full_dataset = LMDBDataset('data/msp/raw/MSP/data/')
-    # import pdb; pdb.set_trace()
-    # full_dataset = [x for x in full_dataset if x.num_nodes < 1000]
-    # print(len(full_dataset))
     #Convert the list of 0s and 1s target strings to integers and a torch tensor FOR MSP PREDICTIONS
     for data in full_dataset:
         y = torch.tensor([int(label) for label in data.y]).float()
@@ -71,17 +67,10 @@ if __name__ == '__main__':
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_set, val_set = torch.utils.data.random_split(full_dataset, [train_size, val_size])
-    # print(len(full_dataset))
-    # import pdb; pdb.set_trace()
     # train loader
     train_loader = DataLoader(train_set, batch_size=1)
     # valid loader 
     valid_loader = DataLoader(val_set, batch_size=1)
-    # full_loader = DataLoader(full_dataset,
-    #                          batch_size=args.batch_size,
-    #                          shuffle=False,
-    #                          num_workers=15)
-
     # logger
     # import pdb; pdb.set_trace()
     now = datetime.datetime.now()
@@ -91,7 +80,7 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     
-    wandb_logger = WandbLogger(name='run_progsnn',
+    wandb_logger = WandbLogger(name='atom3d_msp',
                                 project='progsnn', 
                                 log_model=True,
                                 save_dir=save_dir)
@@ -102,16 +91,13 @@ if __name__ == '__main__':
     # print(train_loader)
     # print([item for item in full_dataset])
     # early stopping 
-    early_stop_callback = EarlyStopping(
-            monitor='train_loss',
-            min_delta=0.00,
-            patience=5,
-            verbose=True,
-            mode='min'
-            )
-    # print(len(val_set))
-    # args.input_dim = len(train_set)
-    # print()
+    # early_stop_callback = EarlyStopping(
+    #         monitor='train_loss',
+    #         min_delta=0.00,
+    #         patience=5,
+    #         verbose=True,
+    #         mode='min'
+    #         )
     args.input_dim = train_set[0].x.shape[-1]
     # args.input_dim = 20
     # print(train_set[0].x.shape[-1])
@@ -130,7 +116,6 @@ if __name__ == '__main__':
                         max_epochs=args.n_epochs,
                         devices = "auto",
                         accelerator="gpu",
-                        callbacks=[early_stop_callback],
                         logger = wandb_logger
                         )
     trainer.fit(model=model,

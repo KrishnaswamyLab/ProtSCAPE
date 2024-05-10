@@ -29,15 +29,15 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', default='deshaw', type=str)
 
     parser.add_argument('--input_dim', default=None, type=int)
-    parser.add_argument('--latent_dim', default=128, type=int)
+    parser.add_argument('--latent_dim', default=64, type=int)
     parser.add_argument('--hidden_dim', default=256, type=int)
     parser.add_argument('--embedding_dim', default=128, type=int)
     parser.add_argument('--lr', default=0.001, type=float)
 
-    parser.add_argument('--alpha', default=0.5, type=float)
+    parser.add_argument('--alpha', default=1e-4, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
     parser.add_argument('--beta_loss', default=0.5, type=float)
-    parser.add_argument('--n_epochs', default=40, type=int)
+    parser.add_argument('--n_epochs', default=100, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)
     parser.add_argument('--nhead', default=1)
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # print(len(full_dataset))
     # print(type(full_dataset))
     # print(full_dataset[0])
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     # train loader
     train_loader = DataLoader(train_set, batch_size=args.batch_size,
                                         shuffle=True, num_workers=15)
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     
-    wandb_logger = WandbLogger(name='run_progsnn',
+    wandb_logger = WandbLogger(name='deshaw_gb3',
                                 project='progsnn', 
                                 log_model=True,
                                 save_dir=save_dir)
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     model = model.cpu()
     model.dev_type = 'cpu'
     print('saving model')
-    torch.save(model.state_dict(), save_dir + "model.npy")
+    torch.save(model.state_dict(), save_dir + "model_deshaw.npy")
     
 
     residual_attention = []

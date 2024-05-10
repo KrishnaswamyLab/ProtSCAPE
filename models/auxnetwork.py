@@ -13,15 +13,19 @@ class BaseRegressor(nn.Module):
         latent_dim = hparams.latent_dim
 
         self.fc1 = nn.Linear(latent_dim, 64)
-        self.fc2 = nn.Linear(64, 1)
+        self.fc2 = nn.Linear(64, 32)
+        self.fc3 = nn.Linear(32, 16)
+        self.fc4 = nn.Linear(16, 1)
         #----CHANGED TO 46 ONLY FOR ATLAS (SASA) DATASET"
         # self.fc2 = nn.Linear(64, 46)
-        self.nonlin = nn.ReLU()
+        self.nonlin = nn.LeakyReLU()
 
     def forward(self, z):
 
         h =  self.nonlin(self.fc1(z))
-        y_hat = self.fc2(h)
+        h = self.nonlin(self.fc2(h))
+        h = self.nonlin(self.fc3(h))
+        y_hat = self.fc4(h)
         return y_hat
 
 class BaseBinaryClassifier(nn.Module):
@@ -31,14 +35,18 @@ class BaseBinaryClassifier(nn.Module):
         latent_dim = hparams.latent_dim
  
         self.fc1 = nn.Linear(latent_dim, 64)
-        self.nonlin  = nn.ReLU()
-        self.fc2 = nn.Linear(64, 1)
-        # self.sigmoid = nn.Sigmoid()
+        self.fc2 = nn.Linear(64, 32)
+        self.fc3 = nn.Linear(32, 16)
+        self.fc4 = nn.Linear(16, 1)
+        self.nonlin = nn.LeakyReLU()
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, z):
 
         h =  self.nonlin(self.fc1(z))
-        y_hat = self.fc2(h)
+        h = self.nonlin(self.fc2(h))
+        h = self.nonlin(self.fc3(h))
+        y_hat = self.sigmoid(self.fc4(h))
         return y_hat
 
 class BaseMultiClassifier(nn.Module):
