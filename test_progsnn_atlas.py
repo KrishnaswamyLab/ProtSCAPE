@@ -143,7 +143,7 @@ if __name__ == '__main__':
 
 
     #test model
-    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-05-09-18/model_atlas_1bx7.npy')
+    trained_weights = torch.load('train_logs/progsnn_logs_run_atlas_2024-05-07-18/model_atlas_1bxy.npy')
     model.load_state_dict(trained_weights)
     model = model.eval()
     attention_maps_col = []

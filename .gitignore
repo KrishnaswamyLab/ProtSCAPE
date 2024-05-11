@@ -18,3 +18,5 @@ train_logs/*
 *.pdb
 *.lock
 *.npz
+*.pml
+*.csv
