@@ -42,7 +42,12 @@ class DEShaw(Dataset):
                                 'ALA' : 11,
                                 'ASP' : 12,
                                 'PHE' : 13,
-                                'TRP' : 14
+                                'TRP' : 14,
+                                'ARG' : 15,
+                                'SER' : 16,
+                                'PRO' : 17,
+                                'HIS' : 18,
+                                'CYS' : 19,
         }
         self.num_node_features = len(self.amino_acid_dict.keys())
         self.transform = transform
@@ -59,21 +64,22 @@ class DEShaw(Dataset):
                       '3' : '6 to 8 us/',\
                       '4' : '8 to 10 us/'       
         }
-             
         data = self.graphs[idx]
         # print(data.name)
+        
         a, b = data.name.split('_')
         a, val = b.split('-')
         dir = index_dict[a]
-
-        dir = "/data/lab/de_shaw/all_trajectory_slices/GB3/" + dir + data.name[0] + '.pdb'
-
+        # import pdb; pdb.set_trace()
+        # print(dir)
+        dir = "/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/BPTI/" + dir + data.name + '.pdb'
+        # print(dir)
         converter = GraphFormatConvertor(src_format="pyg", dst_format="nx", verbose="gnn", columns=None)
         nx_graph = converter.convert_pyg_to_nx(data)
         # config = ProteinGraphConfig(pdb_dir="/data/lab/de_shaw/all_trajectory_slices/GB3/0 to 2 us")
         # nx_graph.graph['config'] = config
         # nx_graph.graph['pdb_id'] = data.name[0]
-
+        # print(nx_graph)
 
         feats = []
 
@@ -85,15 +91,20 @@ class DEShaw(Dataset):
 
         else :
             nodes = data.node_id
+            # print(nodes)
 
             for i in range(data.num_nodes):
-                arr = np.zeros(15)
+                arr = np.zeros(20)
                 acid = nodes[i]
+                # print(acid.split(':'))
                 a, acid, index = acid.split(':')
+                # print(acid)
                 index = self.amino_acid_dict[acid]
+                # print(acid, index)
                 arr[index] = 1
 
                 feats.append(arr)
+        # print(feats)
         data.x = torch.tensor(feats).float()
         data.edge_attr = None
         a, b = data.name.split('_')

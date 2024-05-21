@@ -1,7 +1,7 @@
 import numpy as np
 import os
 from tqdm import tqdm
-DATA_DIR = '/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/BPTI/'
+DATA_DIR = '/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/Ubiquitin'
 PROTEIN_NAME = DATA_DIR.split('/')[-1]
 
 pdgs0to2 = []
@@ -22,7 +22,7 @@ filename_table = {'0 to 2 us': 'pdgs0to2.npy',
                     '6 to 8 us': 'pdgs6to8.npy',
                     '8 to 10 us':'pdgs8to10.npy'}
 
-PARENT_DIR = f'file_names_{PROTEIN_NAME}/'
+PARENT_DIR = f'file_names_UB/'
 if not os.path.isdir(PARENT_DIR):
     os.mkdir(PARENT_DIR)
 
