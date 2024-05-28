@@ -1,1 +1,1 @@
-# ProGSNN
+# ProtSCAPE
