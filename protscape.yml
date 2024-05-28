@@ -1,4 +1,4 @@
-name: mfcn
+name: protscape
 channels:
   - salilab
   - conda-forge
