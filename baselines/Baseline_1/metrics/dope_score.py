@@ -188,6 +188,7 @@ class DOPE_Score:
                 self.cg.optimize(self.fast_fs, max_iterations=50)
             
             if self.normalize:
+                print('normalizing')
                 dope_scores.append(self.fast_mdl.assess_normalized_dope())
             else:
                 dope_scores.append(self.fast_fs.assess_dope())

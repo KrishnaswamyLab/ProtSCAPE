@@ -48,7 +48,7 @@ from models.gsae_model import GSAE
 from models.progsnn import ProGSNN_ATLAS
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
-
+from baselines.Baseline_1.metrics.metrics_fns import calc_dope_scores
 from deshaw_processing.de_shaw_Dataset import DEShaw, Scattering
 from tqdm import tqdm
 
@@ -309,6 +309,7 @@ idx_l = get_cv_idx_l(seed=CV_SEED_GB3,
 pearson_corr_all = []
 spearman_corr_all = []
 rmsd_all = []
+dope_all = []
 for fold_i in range(5):
 
 
@@ -345,12 +346,14 @@ for fold_i in range(5):
     if args.protein == 'gb3':
         deshaw_records = get_deshaw_data_info("/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/GB3")
         traj = md.load(deshaw_records['pdb_filepaths'])
+        tmp_pdb_savepath = f"gb3_tmp_pdbs/"
         full_dataset = DEShaw('deshaw_processing/graphs_gb3/total_graphs.pkl')
     # full_dataset = DEShaw('deshaw_processing/graphs_gb3/total_graphs.pkl')
     if args.protein == 'bpti':
         # print("GOING INTO BPTI")
         deshaw_records = get_deshaw_data_info("/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/BPTI")
         traj = md.load(deshaw_records['pdb_filepaths'])
+        tmp_pdb_savepath = f"bpti_tmp_pdbs/"
         full_dataset = DEShaw('deshaw_processing/graphs_bpti/total_graphs.pkl')
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
@@ -439,7 +442,7 @@ for fold_i in range(5):
 
     # Stack the tensors along a new dimension (dimension 0)
     coords_gt = torch.stack([t for t in tensor_list], dim=0)
-    rmsd_list = []
+    dope_list = []
     for i in range(coords_recon.shape[0]):
         # grab on sample's coords from batch of samples
         # res_coords = batch_residue_coords[i, :, :].numpy()
@@ -456,14 +459,46 @@ for fold_i in range(5):
             orig_residue_coords=ref_frame_residue_coords
         )
         # RMSD
-        rmsd = md.rmsd(target=atomic_frame, reference=ref_frame)
+        # rmsd = md.rmsd(target=atomic_frame, reference=ref_frame)
         # print(rmsd)
-        rmsd_list.append(rmsd)
+        # atomic_frame.save_pdb(f"1ptq_gt_pdb/gt_atomic_frame_{i}.pdb")
+        # rmsd_list.append(rmsd)
+        #DOPE
+        dope = calc_dope_scores(atomic_frame.xyz[0], ref_frame, tmp_pdb_savepath=tmp_pdb_savepath, normalize=True, verbosity=1)
+        dope_list.append(dope)
     
-    rmsd_all.append(np.mean(rmsd_list))
+    dope_all.append(np.mean(dope_list))
 
-print("Mean RMSD:", np.mean(rmsd_all))
-print("Standard Deviation of RMSD:", np.std(rmsd_all))
+print("Mean DOPE:", np.mean(dope_all))
+print("Standard Deviation of DOPE:", np.std(dope_all))
+"""
+RMSD calculation
+"""
+#     rmsd_list = []
+#     for i in range(coords_recon.shape[0]):
+#         # grab on sample's coords from batch of samples
+#         # res_coords = batch_residue_coords[i, :, :].numpy()
+#         # timestep_id = timestep_ids[i]
+        
+#         # ref_frame = self.ref_trajectory[timestep_id]
+#         ref_frame =  traj[i]
+#         ref_frame_residue_coords = get_residue_coords(ref_frame)
+#         # print(coords[i].shape)
+#         # print(ref_frame_residue_coords.shape)
+#         atomic_frame = est_atomic_pdb_from_residue_coords(
+#             orig_frame=ref_frame, 
+#             new_residue_coords=coords_recon[i].numpy(),
+#             orig_residue_coords=ref_frame_residue_coords
+#         )
+#         # RMSD
+#         rmsd = md.rmsd(target=atomic_frame, reference=ref_frame)
+#         # print(rmsd)
+#         rmsd_list.append(rmsd)
+    
+#     rmsd_all.append(np.mean(rmsd_list))
+
+# print("Mean RMSD:", np.mean(rmsd_all))
+# print("Standard Deviation of RMSD:", np.std(rmsd_all))
 
 """
 PCC/SCC calculation

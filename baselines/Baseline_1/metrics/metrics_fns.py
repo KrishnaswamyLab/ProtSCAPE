@@ -9,12 +9,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from data_processing.data_utilities import (
-    minmax_scale_arrays
-)
-
+# from data_processing.data_utilities import (
+#     minmax_scale_arrays
+# )
+# print("Current working directory:", os.getcwd())
+# print(sys.path)
 # for DOPE
-from metrics import dope_score as ds
+# from metrics import dope_score as ds
+from baselines.Baseline_1.metrics import dope_score as ds
 import mdtraj as md
 import biobox
 import pickle
@@ -108,6 +110,7 @@ def calc_dope_scores(coords_arr,
     [ ] parallelizing broken; requires something like if __name__ == '__main__':
     wrapping as seen in `example_dope.py`
     """
+    # print("Random")
     # create a biobox.Molecule object from pdb
     # this should have 1 frame; only used to get topology
     # for both ATLAS and DE Shaw, we can grab the first frame 
@@ -117,10 +120,11 @@ def calc_dope_scores(coords_arr,
     # os.makedirs(path, exist_ok=True)
     ref_frame.save_pdb(path, force_overwrite=True)
     mol.import_pdb(path)
-
+    # print(len(coords_arr.shape))
     # if a batch of frames was passed to calc multiple DOPEs:
     if len(coords_arr.shape) == 3: # (b, n_atoms, 3)
         if multiproc:
+            # print("Going option 1")
             """
             Parallelized DOPE scores
             """
@@ -146,6 +150,7 @@ def calc_dope_scores(coords_arr,
             """
             Serial DOPE scores
             """
+            # print("Going option 2") 
             # init dope score calculator object
             dope_score_obj = ds.DOPE_Score(mol, normalize)
 
@@ -154,7 +159,7 @@ def calc_dope_scores(coords_arr,
             # for i, coords in enumerate(coords_l):
             #     dopes[i] = dope_score_obj.get_dope(coords)
             # dope_scores = dopes
-    
+            
             # option 2: `DOPE_Score`'s optimized serial process
             dope_scores = dope_score_obj.get_all_dope(coords_arr, refine=refine)
     
@@ -166,9 +171,11 @@ def calc_dope_scores(coords_arr,
 
     # if only 1 frame was passed (shape (n, 3)), for 1 DOPE score:
     elif len(coords_arr.shape) == 2:
-        dope_score_obj = ds.DOPE_Score(mol)
+        # print("Going option 3")
+        dope_score_obj = ds.DOPE_Score(mol, normalize)
         dope = dope_score_obj.get_dope(coords_arr, refine=refine)
         if verbosity > 0:
+            # print("here")
             print(f'dope = {dope:.4f}')
         return dope
 
@@ -220,13 +227,13 @@ class ProteinConfigMetricsEstimates:
             res_coords = batch_pred_residue_coords[i, :, :].numpy()
             
             # unscale residue coords back to original scales
-            if self.transform_info is not None:
-                res_coords = minmax_scale_arrays(
-                    data=res_coords, 
-                    train_mins=self.transform_info['train_mins'], 
-                    train_maxs=self.transform_info['train_maxs'], 
-                    inverse_transform=True
-                )
+            # if self.transform_info is not None:
+            #     res_coords = minmax_scale_arrays(
+            #         data=res_coords, 
+            #         train_mins=self.transform_info['train_mins'], 
+            #         train_maxs=self.transform_info['train_maxs'], 
+            #         inverse_transform=True
+            #     )
                 
             # back-estimate atomic coords from pred. residue coords
             # !!! use the single ref_frame (see note in fn annotation)

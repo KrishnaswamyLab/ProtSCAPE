@@ -25,7 +25,7 @@ from models.gsae_model import GSAE
 from models.progsnn import ProGSNN_ATLAS
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
-
+from baselines.Baseline_1.metrics.metrics_fns import calc_dope_scores
 from deshaw_processing.de_shaw_Dataset import DEShaw, Scattering
 from tqdm import tqdm
 
@@ -227,6 +227,7 @@ idx_l = get_cv_idx_l(seed=CV_SEED_GB3,
 pearson_corr_all = []
 spearman_corr_all = []
 rmsd_all = []
+dope_all = []
 for fold_i in range(5):
 
     # Training ProGSNN_atlas
@@ -264,6 +265,7 @@ for fold_i in range(5):
     if args.protein == '1bx7':
         #Change to analyis of 1bgf_A_protein
         traj = md.load("1bx7_A_analysis/1bx7_A_R1.xtc", top= "1bx7_A_analysis/1bx7_A.pdb")
+        tmp_pdb_savepath=f"1bx7_tmp_pdb/"
         with open('1bx7_A_analysis/graphsrog.pkl', 'rb') as file:
             full_dataset =  pickle.load(file)
     #46 residues
@@ -273,11 +275,13 @@ for fold_i in range(5):
     #60 residues
     if args.protein == '1bxy':
         traj = md.load("1bxy_A_analysis/1bxy_A_R1.xtc", top= "1bxy_A_analysis/1bxy_A.pdb")
+        tmp_pdb_savepath=f"1bxy_tmp_pdb/"
         with open('1bxy_A_analysis/graphsrog.pkl', 'rb') as file:
             full_dataset =  pickle.load(file)
             
     if args.protein == '1ptq':
         traj = md.load("1ptq_A_analysis/1ptq_A_R1.xtc", top= "1ptq_A_analysis/1ptq_A.pdb")
+        tmp_pdb_savepath=f"1ptq_tmp_pdbs/"
         with open('1ptq_A_analysis/graphsrog.pkl', 'rb') as file:
             full_dataset =  pickle.load(file)
     if args.protein == '1fd3':
@@ -358,8 +362,20 @@ for fold_i in range(5):
     
     coords_recon = torch.cat(coords_recon_lst, dim=0)
     coords_gt = np.array([data.coords for data in val_set])
-    
-    rmsd_list = []
+
+        # import mdtraj on first call
+
+
+# batch_rmsds = [None] * batch_size
+# batch_sasas = [None] * batch_size
+# batch_rgs = [None] * batch_size
+# batch_dopes = [None] * batch_size
+# deshaw_records = get_deshaw_data_info("/gpfs/gibbs/pi/krishnaswamy_smita/de_shaw/BPTI")
+
+# traj = md.load(deshaw_records['pdb_filepaths'])
+    # traj = md.load('1ptq_A_analysis/1ptq_A_R1.xtc', top='1ptq_A_analysis/1ptq_A.pdb')
+    # rmsd_list = []
+    dope_list = []
     for i in range(coords_recon.shape[0]):
         # grab on sample's coords from batch of samples
         # res_coords = batch_residue_coords[i, :, :].numpy()
@@ -376,15 +392,54 @@ for fold_i in range(5):
             orig_residue_coords=ref_frame_residue_coords
         )
         # RMSD
-        rmsd = md.rmsd(target=atomic_frame, reference=ref_frame)
+        # rmsd = md.rmsd(target=atomic_frame, reference=ref_frame)
         # print(rmsd)
-        rmsd_list.append(rmsd)
+        # atomic_frame.save_pdb(f"1ptq_gt_pdb/gt_atomic_frame_{i}.pdb")
+        # rmsd_list.append(rmsd)
+        #DOPE
+        dope = calc_dope_scores(atomic_frame.xyz[0], ref_frame, tmp_pdb_savepath=tmp_pdb_savepath, normalize=True, verbosity=1)
+        dope_list.append(dope)
     
-    rmsd_all.append(np.mean(rmsd_list))
+    dope_all.append(np.mean(dope_list))
 
-print("Mean RMSD:", np.mean(rmsd_all))
-print("Standard Deviation of RMSD:", np.std(rmsd_all))
+print("Mean DOPE:", np.mean(dope_all))
+print("Standard Deviation of DOPE:", np.std(dope_all))
+
+
+
+
+
+
+"""
+Calculate RMSD
+"""
+#     rmsd_list = []
+#     for i in range(coords_recon.shape[0]):
+#         # grab on sample's coords from batch of samples
+#         # res_coords = batch_residue_coords[i, :, :].numpy()
+#         # timestep_id = timestep_ids[i]
+        
+#         # ref_frame = self.ref_trajectory[timestep_id]
+#         ref_frame =  traj[i]
+#         ref_frame_residue_coords = get_residue_coords(ref_frame)
+#         # print(coords[i].shape)
+#         # print(ref_frame_residue_coords.shape)
+#         atomic_frame = est_atomic_pdb_from_residue_coords(
+#             orig_frame=ref_frame, 
+#             new_residue_coords=coords_recon[i].numpy(),
+#             orig_residue_coords=ref_frame_residue_coords
+#         )
+#         # RMSD
+#         rmsd = md.rmsd(target=atomic_frame, reference=ref_frame)
+#         # print(rmsd)
+#         rmsd_list.append(rmsd)
     
+#     rmsd_all.append(np.mean(rmsd_list))
+
+# print("Mean RMSD:", np.mean(rmsd_all))
+# print("Standard Deviation of RMSD:", np.std(rmsd_all))
+
+
 
 """
 Calculate PCC and SCC

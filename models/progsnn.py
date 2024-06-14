@@ -507,12 +507,13 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         self.protein = hparams.protein
 
         # Encoder
+        print("Initializing scattering..")
         self.scattering_network = Scatter_deshaw(self.input_dim, self.max_seq_len, trainable_f=True)
-
+        print("Initializing positional encoding..")
         self.pos_encoder = PositionalEncoding(
             d_model=self.scattering_network.out_shape(),
             max_len=self.max_seq_len)
-
+        print("Initializing row encoder..")
         self.row_encoder = TransformerEncoder(
             num_layers=self.layers,
             input_dim=self.scattering_network.out_shape(),
@@ -521,6 +522,7 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
             dropout=self.probs)
         
         # import pdb; pdb.set_trace()
+        print("Initializing col encoder..")
         self.col_encoder = TransformerEncoder(num_layers=self.layers,
                                               input_dim=self.residue_num,
                                               num_heads=self.nhead,
@@ -528,6 +530,7 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
                                               dropout=self.probs)
 
         # Auxiliary network
+        print("Initializing bottleneck module..")
         self.bottleneck_module = BaseBottleneck(
             self.scattering_network.out_shape(),
             self.hidden_dim,
@@ -535,20 +538,29 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
 
         # Property prediction
         # self regressor module
+        print("Initializing prediction network..")
         proto_pred_net = str2auxnetwork(self.task)
         self.pred_net = proto_pred_net(hparams)
 
         #Can we use the same regressor module for time prediction as well?
-       
+        print("Initializing layer 1..")
         self.fc1 = nn.Linear(self.latent_dim, self.residue_num*self.hidden_dim)
+        print("Initializing layer 2..")
+        print(self.residue_num)
         self.fc2 = nn.Linear(self.residue_num*self.hidden_dim, self.residue_num*self.scattering_network.out_shape())
+        print("Initializing layer 3..")
         self.fc3 = nn.Linear(self.latent_dim, self.hidden_dim)
+        print("Initializing layer 4..")
         self.fc4 = nn.Linear(self.hidden_dim, 128)
+        print("Initializing layer 5..")
         self.fc5 = nn.Linear(128, 64)
+        print("Initializing layer 6..")
         self.fc6 = nn.Linear(64, 32)
+        print("Initializing layer 7..")
         self.fc7 = nn.Linear(32, self.residue_num*3)
         self.softmax = nn.Softmax(dim=0)
         self.loss_list = []
+        print("Initialization complete!")
 
 
     def generate_row_mask(self, curr_seq_len):

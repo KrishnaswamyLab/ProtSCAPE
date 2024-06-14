@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--input_dim', default=None, type=int)
     parser.add_argument('--latent_dim', default=64, type=int)
-    parser.add_argument('--hidden_dim', default=256, type=int)
+    parser.add_argument('--hidden_dim', default=64, type=int)
     parser.add_argument('--embedding_dim', default=128, type=int)
     parser.add_argument('--lr', default=0.001, type=float)
 
