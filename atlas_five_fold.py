@@ -22,7 +22,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN_ATLAS
+from models.progsnn import ProGSNN_ATLAS, ProGSNN_ATLAS_noT
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 from baselines.Baseline_1.metrics.metrics_fns import calc_dope_scores

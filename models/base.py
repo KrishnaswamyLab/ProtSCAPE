@@ -334,10 +334,10 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
         # import pdb; pdb.set_trace()
         x = x.float()#, y.float()
 
-        preds, _, coeffs_recon, coeffs, _,_, coords_recon = self(batch)
+        preds, _, coeffs_recon, coeffs, _,_, coords_recon, aa_recon, aa_gt = self(batch)
         targets = y
 
-        return preds, targets, coeffs_recon, coeffs, coords, coords_recon
+        return preds, targets, coeffs_recon, coeffs, coords, coords_recon, aa_recon, aa_gt
 
     def relabel(self, loss_dict, label):
 
@@ -347,14 +347,14 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
     def training_step(self, batch, batch_idx):
         torch.set_grad_enabled(True)
-        preds, targets, coeffs_recon, coeffs, coords, coords_recon = self.shared_step(batch)
+        preds, targets, coeffs_recon, coeffs, coords, coords_recon, aa_recon, aa_gt = self.shared_step(batch)
 
         assert len(preds) == len(
             targets), f'preds: {len(preds)} targs: {len(targets)}'
 
         train_loss, train_loss_logs = self.multi_loss(
             predictions=preds, targets=targets, coeffs_recon=coeffs_recon, coeffs=coeffs, batch_idx=batch_idx,
-              coords=coords, coords_recon=coords_recon)
+              coords=coords, coords_recon=coords_recon, aa_recon=aa_recon, aa_gt=aa_gt)
 
         train_loss_logs = self.relabel(train_loss_logs, 'train_')
 
@@ -364,14 +364,14 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         torch.set_grad_enabled(True)
-        preds, targets, coeffs_recon, coeffs, coords, coords_recon = self.shared_step(batch)
+        preds, targets, coeffs_recon, coeffs, coords, coords_recon, aa_recon, aa_gt = self.shared_step(batch)
         # print(targets)
         assert len(preds) == len(
             targets), f'preds: {len(preds)} targs: {len(targets)}'
 
         val_loss, val_loss_logs = self.multi_loss(
             predictions=preds, targets=targets, coeffs_recon=coeffs_recon, coeffs=coeffs, batch_idx=batch_idx,
-              coords=coords, coords_recon=coords_recon)
+              coords=coords, coords_recon=coords_recon, aa_recon=aa_recon, aa_gt=aa_gt)
 
         val_loss_logs = self.relabel(val_loss_logs, 'val_')
 
@@ -379,7 +379,7 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
         return val_loss
 
-    def multi_loss(self, predictions, targets, coeffs_recon, coeffs, batch_idx, coords, coords_recon):
+    def multi_loss(self, predictions, targets, coeffs_recon, coeffs, batch_idx, coords, coords_recon, aa_recon, aa_gt):
         # main loss
         main_loss = self.main_loss(predictions=predictions, targets=targets)
 
@@ -389,7 +389,10 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
         #reconstruction of coordinates loss
         recon_coords_loss = self.recon_coords_loss(predictions=coords_recon, targets=coords)
 
-        total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + (1-self.alpha-self.beta_loss) * recon_coords_loss
+        #reconstruction of the amino acids loss
+        recon_aa_loss = self.recon_aa_loss(predictions=aa_recon, targets=aa_gt)
+
+        total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + self.gamma * recon_coords_loss +(1-self.alpha-self.beta_loss-self.gamma) * recon_aa_loss
         # total_loss = self.alpha*main_loss + recon_loss #+ recon_coords_loss
         # total_loss = main_loss
         # print("Total loss: ", total_loss)
@@ -400,6 +403,7 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
             'time_loss': main_loss.detach(),
             'scatter_recon_loss': recon_loss.detach(),
             'coords_recon_loss': recon_coords_loss.detach(),
+            'aa_recon_loss': recon_aa_loss.detach(),
         }
 
         return total_loss, log_losses
@@ -684,6 +688,9 @@ class TGTransformerBaseModel_ATLAS_noT(LightningModule):
 
         #reconstruction of coordinates loss
         recon_coords_loss = self.recon_coords_loss(predictions=coords_recon, targets=coords)
+
+        #reconstruction of the amino acids loss
+        # recon_aa_loss = self.recon_aa_loss(predictions=aa_recon, targets=aa)
 
         total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + (1-self.alpha-self.beta_loss) * recon_coords_loss
         # total_loss = self.alpha*main_loss + recon_loss #+ recon_coords_loss

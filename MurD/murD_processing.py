@@ -15,19 +15,23 @@ def load_data():
     closed_traj.unitcell_vectors = None
     open_traj.unitcell_vectors = None
     # Concatenate the trajectories
-    traj = md.join([closed_traj, open_traj])
+    # traj = md.join([closed_traj, open_traj])
     # import pdb; pdb.set_trace()
-    return traj
+    return closed_traj
+
 
 def one_hot_encode(residues):
     amino_acid_to_index = {amino_acid: i for i, amino_acid in enumerate(set(residues))}
     indices = [amino_acid_to_index[aa] for aa in residues]
+    # import pdb; pdb.set_trace()
     feats = []
     for i in range(len(indices)):
         arr = np.zeros(20)
         arr[indices[i]] = 1
         feats.append(arr)
     return torch.tensor(feats, dtype=torch.float)
+
+
 
 def create_pyg_graph(traj, frame_idx, property):
     # Extract coordinates and residue names for the specified frame
@@ -40,8 +44,15 @@ def create_pyg_graph(traj, frame_idx, property):
     # rmsd_data = rmsd_data[1:]
     # import pdb; pdb.set_trace()
     # One-hot encode residue features
-    node_features = one_hot_encode(residue_names)
     
+    node_features = one_hot_encode(residue_names)
+    # Embedding layer
+    # Randomly initialize node features
+    # node_features = torch.randn(len(residue_names), 3)
+    # embedding = torch.nn.Embedding(len(residue_names), 3)
+    
+    # # Apply embedding to node features
+    # node_features = embedding
     for residue in frame.top.residues:
         atom_indices = [atom.index for atom in residue.atoms]
         atom_coords = frame.xyz[0][atom_indices]
@@ -69,6 +80,7 @@ def create_pyg_graph(traj, frame_idx, property):
             edge_index.append([i, j])  # Add edge between residue i and its k-nearest neighbor j
     edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()  # Transpose for PyTorch format
     graph.edge_index = edge_index
+    # print(graph)
     return graph
 
 if __name__ == "__main__":
@@ -85,7 +97,7 @@ if __name__ == "__main__":
         graphs.append(graph)
     
     # Define the filename for the output .pkl file
-    output_filename = f"graphs_MurD.pkl"
+    output_filename = f"graphs_MurD_closed.pkl"
 
     # Save the list of graphs to the .pkl file
     with open(output_filename, 'wb') as f:

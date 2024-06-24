@@ -216,7 +216,7 @@ class Diffuse(MessagePassing):
 
 def feng_filters():
 
-    tmp = np.arange(16).reshape(4,4) #tmp doesn't seem to be used!
+    #After results = 4, it corresponds to i = 1 and j = 0
     results = [4]
     for i in range(2, 4):
         for j in range(0, i):

@@ -287,6 +287,7 @@ class ProGSNN_atom3d(TGTransformerBaseModel_atom3d):
         self.alpha = hparams.alpha
         self.beta_loss = hparams.beta_loss
         self.batch_size = hparams.batch_size
+        
 
         # Encoder
         self.scattering_network = Scatter(self.input_dim, self.max_seq_len, trainable_f=True)
@@ -505,6 +506,7 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         self.batch_size = hparams.batch_size
         self.residue_num = hparams.residue_num
         self.protein = hparams.protein
+        self.gamma = hparams.gamma
 
         # Encoder
         print("Initializing scattering..")
@@ -541,12 +543,22 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         print("Initializing prediction network..")
         proto_pred_net = str2auxnetwork(self.task)
         self.pred_net = proto_pred_net(hparams)
-
+        self.node_encoder = nn.Sequential(
+            nn.Linear(20, 64),
+            nn.ReLU(),
+            nn.Linear(64, 3)
+        )
+        self.node_decoder = nn.Sequential(
+            nn.Linear(3, 64),
+            nn.ReLU(),
+            nn.Linear(64, 20)
+        )
         #Can we use the same regressor module for time prediction as well?
+        # self.embedding = nn.Embedding(self.residue_num, 3)
         print("Initializing layer 1..")
         self.fc1 = nn.Linear(self.latent_dim, self.residue_num*self.hidden_dim)
         print("Initializing layer 2..")
-        print(self.residue_num)
+        # import pdb; pdb.set_trace()
         self.fc2 = nn.Linear(self.residue_num*self.hidden_dim, self.residue_num*self.scattering_network.out_shape())
         print("Initializing layer 3..")
         self.fc3 = nn.Linear(self.latent_dim, self.hidden_dim)
@@ -628,12 +640,20 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         h = F.relu(self.fc5(h))
         h = F.relu(self.fc6(h))
         return self.fc7(h)
+
+    def encode_nodes(self, batch):
+        return self.node_encoder(batch.x)
+    def decode_nodes(self, batch):
+        return self.node_decoder(batch.x)
     def encode(self, batch):
         """
         input data is a torch geometric mini-batch
         """
-
+        aa_gt = batch.x
+        batch.x = self.encode_nodes(batch)
         # Scattering coefficients.
+        
+        # import pdb; pdb.set_trace()
         print("Before Scattering")
         #in_channels in the scattering network is 15 which corresponds to 15 amino acids
         #When we get the out_shape(), it is multiplied by 11 which equals 165.
@@ -672,15 +692,14 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         # Reconstruct the scattering coefficients.
         coeffs_recon = self.reconstruct(z_rep)
         coeffs_recon = coeffs_recon.reshape(-1, self.residue_num, self.scattering_network.out_shape())
-        #Reconstruct the x,y,z coordinates from the scattering coefficients
-        # print(coeffs_recon.shape)
-        # import pdb; pdb.set_trace()
-        # print(coeffs_recon)
-        return z_rep, coeffs, coeffs_recon, attention_maps, att_maps
+
+        #Reconstruct the one hot encoding of the amino acids
+        aa_recon = self.decode_nodes(batch)
+        return z_rep, coeffs, coeffs_recon, attention_maps, att_maps, aa_recon, aa_gt
 
     def forward(self, batch):
         # print(self.scattering_network.out_shape())
-        z_rep, coeffs, coeffs_recon, attn_maps, att_maps = self.encode(batch)
+        z_rep, coeffs, coeffs_recon, attn_maps, att_maps, aa_recon, aa_gt = self.encode(batch)
         # print(attn_maps)
         #MLP for property prediction
         y_pred = self.pred_net(z_rep)
@@ -689,7 +708,7 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         # print(y_pred)
         # import pdb; pdb.set_trace()
         # y_pred = self.softmax(y_pred)
-        return y_pred, z_rep, coeffs_recon, coeffs, attn_maps, att_maps, coords_recon
+        return y_pred, z_rep, coeffs_recon, coeffs, attn_maps, att_maps, coords_recon, aa_recon, aa_gt
 
     def main_loss(self, predictions, targets):
         y_pred = predictions
@@ -715,6 +734,16 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         return loss
 
     def recon_loss(self, predictions, targets):
+        y_pred = predictions.float()
+        y_true = targets.float()
+        # y_pred = torch.tensor(y_pred, dtype=torch.float32)
+        # y_true = torch.tensor(y_true, dtype=torch.float32)
+        # import pdb; pdb.set_trace()
+        loss = nn.MSELoss()(y_pred, y_true)
+        # print("loss: {}".format(loss))
+        return loss
+    
+    def recon_aa_loss(self, predictions, targets):
         y_pred = predictions.float()
         y_true = targets.float()
         # y_pred = torch.tensor(y_pred, dtype=torch.float32)
@@ -1081,7 +1110,7 @@ class ProGSNN_ATLAS_noT(TGTransformerBaseModel_ATLAS_noT):
         self.pred_net = proto_pred_net(hparams)
 
         #Can we use the same regressor module for time prediction as well?
-       
+        
         self.fc1 = nn.Linear(self.latent_dim, self.residue_num*self.hidden_dim)
         self.fc2 = nn.Linear(self.residue_num*self.hidden_dim, self.residue_num*self.scattering_network.out_shape())
         self.fc3 = nn.Linear(self.latent_dim, self.hidden_dim)
@@ -1117,27 +1146,15 @@ class ProGSNN_ATLAS_noT(TGTransformerBaseModel_ATLAS_noT):
         # print(embedded_batch.shape)
         pos_encoded_batch = self.pos_encoder(embedded_batch)
         # print(pos_encoded_batch.shape)
-        # import pdb; pdb.set_trace()
         # TransformerEncoder takes input (sequence_length,batch_size,num_features)
         #Create a vector of size sequence length and multiply it with the pos_encoded_batch
-        
-        if not hasattr(self, 'att_maps') or self.att_maps.shape[0] != embedded_batch.shape[1]:
-            print("Initializing Attention Map....")
-            self.att_maps = nn.Parameter(torch.ones(embedded_batch.shape[1], device=self.device))
-        
-        # att_maps = torch.ones(embedded_batch.shape[1], device=self.device)
-        output_embed = pos_encoded_batch * self.att_maps.unsqueeze(-1)
-        output_embed = output_embed.view(output_embed.size(0), -1)
-        #Ultimately we want (batch_size,seq_len*num_features) --> output_embed
-        # output_embed = self.row_encoder(pos_encoded_batch, att_maps)
+        #Ultimately we want (batch_size,seq_len*num_features) --> output_emved
         #vector --> att_maps
-        # import pdb; pdb.set_trace()
-
         # row_mask = self.generate_row_mask(embedded_batch.shape[1])
-        # output_embed = self.row_encoder(pos_encoded_batch)
+        output_embed = self.row_encoder(pos_encoded_batch)
         # output_embed = self.row_encoder(pos_encoded_batch, None)
-        # att_maps = self.row_encoder.get_attention_maps(pos_encoded_batch)
-        return output_embed, self.att_maps
+        att_maps = self.row_encoder.get_attention_maps(pos_encoded_batch)
+        return output_embed, att_maps
 
     def col_transformer_encoding(self, embedded_batch):
         """transformer logic
