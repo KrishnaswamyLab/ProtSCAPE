@@ -6,12 +6,13 @@ from torch_geometric.data import Data, DataLoader
 from torch_geometric.nn import GCNConv
 from argparse import ArgumentParser
 import pickle
-from models.GCN import GCN, train, test, test_rmsd, test_dope
+from models.GIN import GIN, train, test, test_rmsd, test_dope
 import numpy as np
 from numpy.random import RandomState
 import mdtraj as md
 import os
 from deshaw_processing.de_shaw_Dataset import DEShaw, Scattering
+
 """
 ENV
 """
@@ -102,7 +103,6 @@ def get_deshaw_data_info(deshaw_folderpath):
 idx_l = get_cv_idx_l(seed=CV_SEED_GB3,
                         dataset_size=1001, 
                         k=5)
-
 pearson_all = []
 spearman_all = []
 rmsd_all = []
@@ -170,7 +170,7 @@ for fold_i in range(5):
     valid_loader = DataLoader(val_set, batch_size=args.batch_size,
                                         shuffle=False, num_workers=15)
     
-    model = GCN(num_features=20, hidden_size=args.hidden_dim)
+    model = GIN(num_features=20, hidden_size=args.hidden_dim)
     optimizer = optim.Adam(model.parameters(), lr=0.01)
     criterion = nn.MSELoss()
     print("Training..")

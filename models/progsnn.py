@@ -507,6 +507,7 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         self.residue_num = hparams.residue_num
         self.protein = hparams.protein
         self.gamma = hparams.gamma
+        # self.delta = hparams.delta
 
         # Encoder
         print("Initializing scattering..")
@@ -639,7 +640,8 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         h = F.relu(self.fc4(h))
         h = F.relu(self.fc5(h))
         h = F.relu(self.fc6(h))
-        return self.fc7(h)
+        h = self.fc7(h)
+        return h
 
     def encode_nodes(self, batch):
         return self.node_encoder(batch.x)
@@ -778,6 +780,14 @@ class ProGSNN_ATLAS(TGTransformerBaseModel_ATLAS):
         loss = nn.MSELoss()(y_pred, y_true)
         print("loss: {}".format(loss))
         return loss
+
+    def kl_divergence(self, mu, logvar):
+        # import pdb; pdb.set_trace()
+        # mu = torch.tensor(mu, dtype=torch.float32)
+        # logvar = torch.tensor(logvar, dtype=torch.float32)
+        # import pdb; pdb.set_trace()
+        kl_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return kl_div
 
     def get_loss_list(self):
         return self.loss_list

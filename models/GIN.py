@@ -7,6 +7,7 @@ from torch_geometric.nn import GCNConv
 from sklearn.metrics import roc_auc_score
 import numpy as np
 from tqdm import tqdm
+from torch_geometric.nn import GINConv
 import mdtraj as md
 from baselines.Baseline_1.metrics.metrics_fns import calc_dope_scores
 """
@@ -37,6 +38,7 @@ def eucl_dist_corrs(coords_1,
         pcc = np.corrcoef(dists[0], dists[1])[0, 1]
         scc = spearmanr(dists[0], dists[1])
         return pcc, scc
+
 """
 RMSD functions
 """
@@ -96,13 +98,13 @@ def get_residue_coords(frame):
     residue_ctr_coords = np.row_stack(residue_ctr_coords)
     return residue_ctr_coords
 
-
-
-class GCN(nn.Module):
+class GIN(nn.Module):
     def __init__(self, num_features, hidden_size):
-        super(GCN, self).__init__()
-        self.conv1 = GCNConv(num_features, hidden_size)
-        self.conv2 = GCNConv(hidden_size, hidden_size)
+        super(GIN, self).__init__()
+        nn1 = nn.Sequential(nn.Linear(num_features, hidden_size), nn.ReLU(), nn.Linear(hidden_size, hidden_size))
+        nn2 = nn.Sequential(nn.Linear(hidden_size, hidden_size), nn.ReLU(), nn.Linear(hidden_size, hidden_size))
+        self.conv1 = GINConv(nn1)
+        self.conv2 = GINConv(nn2)
         self.fc = nn.Linear(hidden_size, 3)  # Output 3D coordinates
 
     def forward(self, x, edge_index):
@@ -110,10 +112,10 @@ class GCN(nn.Module):
         x = F.relu(x)
         x = self.conv2(x, edge_index)
         x = F.relu(x)
-        # x = torch.mean(x, dim=0, keepdim=True)
         x = F.dropout(x, training=self.training)
         x = self.fc(x)
         return x
+
 
 def train(model, loader, optimizer, criterion, residue_num, num_epochs=100):
     model.train()
@@ -205,7 +207,7 @@ def test_dope(model, loader, val_set, residue_num, traj, tmp_pdb_savepath):
             new_residue_coords=coords_recon[i].numpy(),
             orig_residue_coords=ref_frame_residue_coords
             )
-        dope = calc_dope_scores(atomic_frame.xyz[0], ref_frame, tmp_pdb_savepath=tmp_pdb_savepath, normalize=True, verbosity=1)
+        dope = calc_dope_scores(atomic_frame.xyz[0], ref_frame, tmp_pdb_savepath=tmp_pdb_savepath, normalize=True, verbosity=0)
         dope_list.append(dope)
     dope_mean = np.mean(dope_list)
     print(f'DOPE: {dope_mean:.4f}')

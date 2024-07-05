@@ -5,39 +5,19 @@ import torch_geometric.data as Data
 import pickle
 from sklearn.neighbors import NearestNeighbors
 # Open the XTC trajectory file
-# def load_data():
-#     # Load the closed conformation PDB
-#     # closed_traj = md.load_pdb("MurD/MurD_closed_selection.pdb")
-#     gt_traj = md.load_pdb('5a5e.pdb')
-#     # Load the open conformation PDB
-#     # open_traj = md.load_pdb("MurD/MurD_open_selection.pdb")
-#     # Remove unit cell information from both trajectories
-#     # closed_traj.unitcell_vectors = None
-#     # open_traj.unitcell_vectors = None
-#     # Concatenate the trajectories
-#     # traj = md.join([closed_traj, open_traj])
-#     import pdb; pdb.set_trace()
-#     return gt_traj
-import MDAnalysis as mda
-
-import MDAnalysis as mda
-
 def load_data():
-    # Load the PDB file
-    u = mda.Universe('5a5e.pdb')
-
-    # Select protein residues and remove alternate locations
-    protein = u.select_atoms('protein and not altloc B')
-    
-    # Print the number of residues selected
-    print(f"Number of residues: {len(protein.residues)}")
+    # Load the closed conformation PDB
+    open_traj = md.load_pdb("4ake.pdb")
+    # gt_traj = md.load_pdb('MurD/5A5F_full.pdb')
+    # Load the open conformation PDB
+    closed_traj = md.load_pdb("1ake.pdb")
+    # Remove unit cell information from both trajectories
+    # closed_traj.unitcell_vectors = None
+    # closed_traj.unitcell_vectors = None
+    # Concatenate the trajectories
+    # traj = md.join([closed_traj, open_traj])
     import pdb; pdb.set_trace()
-    return u
-
-
-
-# loaded_universe = load_data()
-
+    return open_traj, closed_traj
 
 
 def one_hot_encode(residues):
@@ -46,7 +26,7 @@ def one_hot_encode(residues):
     # import pdb; pdb.set_trace()
     feats = []
     for i in range(len(indices)):
-        arr = np.zeros(24)
+        arr = np.zeros(21)
         arr[indices[i]] = 1
         feats.append(arr)
     return torch.tensor(feats, dtype=torch.float)
@@ -103,21 +83,44 @@ def create_pyg_graph(traj, frame_idx, property):
     # print(graph)
     return graph
 
+def combine_graphs(graph1, graph2):
+    combined_x = torch.cat([graph1.x, graph2.x], dim=0)
+    combined_coords = np.vstack([graph1.coords, graph2.coords])
+    combined_time = torch.tensor([graph1.time, graph2.time])
+    combined_y = torch.tensor([graph1.y, graph2.y])
+
+    edge_index1 = graph1.edge_index
+    edge_index2 = graph2.edge_index + graph1.num_nodes
+    combined_edge_index = torch.cat([edge_index1, edge_index2], dim=1)
+
+    combined_graph = Data.Data(
+        x=combined_x, 
+        coords=combined_coords, 
+        time=combined_time, 
+        num_nodes=graph1.num_nodes + graph2.num_nodes, 
+        y=combined_y,
+        edge_index=combined_edge_index
+    )
+    return combined_graph
+
 if __name__ == "__main__":
     # Load trajectory data
-    traj = load_data()
+    open_traj, closed_traj = load_data()
 
     # Create a list to store PyTorch Geometric graphs
     graphs = []
     property = 'rog'
+    import pdb; pdb.set_trace()
     # Iterate over each frame in the trajectory and create a graph for each timepoint
-    for frame_idx in range(traj.n_frames):
+    for frame_idx in range(open_traj.n_frames):
         # import pdb; pdb.set_trace()
-        graph = create_pyg_graph(traj, frame_idx, property)
-        graphs.append(graph)
+        open_graph = create_pyg_graph(open_traj, frame_idx, property)
+        closed_graph = create_pyg_graph(closed_traj, frame_idx, property)
+        combined_graph = combine_graphs(open_graph, closed_graph)
+        graphs.append(combined_graph)
     
     # Define the filename for the output .pkl file
-    output_filename = f"graphs_MurD_5a5e.pkl"
+    output_filename = f"combined_graphs_ADK.pkl"
 
     # Save the list of graphs to the .pkl file
     with open(output_filename, 'wb') as f:

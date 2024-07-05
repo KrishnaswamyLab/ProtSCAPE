@@ -38,6 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('--beta', default=0.0005, type=float)
     parser.add_argument('--beta_loss', default=0.2, type=float)
     parser.add_argument('--gamma', default=0.0005, type=float)
+    # parser.add_argument('--delta', default=0.6, type=float)
     parser.add_argument('--n_epochs', default=300, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)

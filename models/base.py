@@ -347,14 +347,14 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
     def training_step(self, batch, batch_idx):
         torch.set_grad_enabled(True)
-        preds, targets, coeffs_recon, coeffs, coords, coords_recon, aa_recon, aa_gt = self.shared_step(batch)
+        preds, targets, coeffs_recon, coeffs, coords, coords_recon, aa_recon, aa_gt, mu, logvar = self.shared_step(batch)
 
         assert len(preds) == len(
             targets), f'preds: {len(preds)} targs: {len(targets)}'
 
         train_loss, train_loss_logs = self.multi_loss(
             predictions=preds, targets=targets, coeffs_recon=coeffs_recon, coeffs=coeffs, batch_idx=batch_idx,
-              coords=coords, coords_recon=coords_recon, aa_recon=aa_recon, aa_gt=aa_gt)
+              coords=coords, coords_recon=coords_recon, aa_recon=aa_recon, aa_gt=aa_gt, mu=mu, logvar=logvar)
 
         train_loss_logs = self.relabel(train_loss_logs, 'train_')
 
@@ -388,11 +388,15 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
         #reconstruction of coordinates loss
         recon_coords_loss = self.recon_coords_loss(predictions=coords_recon, targets=coords)
-
+        print("Done printing recon loss")
         #reconstruction of the amino acids loss
         recon_aa_loss = self.recon_aa_loss(predictions=aa_recon, targets=aa_gt)
 
+        #kl divergence loss
+        # kl_loss = self.kl_divergence(mu, logvar)
+
         total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + self.gamma * recon_coords_loss +(1-self.alpha-self.beta_loss-self.gamma) * recon_aa_loss
+        # total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + self.gamma * recon_coords_loss + self.delta * recon_aa_loss + (1-self.alpha-self.beta_loss-self.gamma-self.delta) * kl_loss
         # total_loss = self.alpha*main_loss + recon_loss #+ recon_coords_loss
         # total_loss = main_loss
         # print("Total loss: ", total_loss)
@@ -404,6 +408,7 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
             'scatter_recon_loss': recon_loss.detach(),
             'coords_recon_loss': recon_coords_loss.detach(),
             'aa_recon_loss': recon_aa_loss.detach(),
+            # 'kl_loss': kl_loss.detach()
         }
 
         return total_loss, log_losses

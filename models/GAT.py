@@ -7,6 +7,7 @@ from torch_geometric.nn import GCNConv
 from sklearn.metrics import roc_auc_score
 import numpy as np
 from tqdm import tqdm
+from torch_geometric.nn import GATConv
 import mdtraj as md
 from baselines.Baseline_1.metrics.metrics_fns import calc_dope_scores
 """
@@ -37,6 +38,7 @@ def eucl_dist_corrs(coords_1,
         pcc = np.corrcoef(dists[0], dists[1])[0, 1]
         scc = spearmanr(dists[0], dists[1])
         return pcc, scc
+
 """
 RMSD functions
 """
@@ -96,13 +98,11 @@ def get_residue_coords(frame):
     residue_ctr_coords = np.row_stack(residue_ctr_coords)
     return residue_ctr_coords
 
-
-
-class GCN(nn.Module):
-    def __init__(self, num_features, hidden_size):
-        super(GCN, self).__init__()
-        self.conv1 = GCNConv(num_features, hidden_size)
-        self.conv2 = GCNConv(hidden_size, hidden_size)
+class GAT(nn.Module):
+    def __init__(self, num_features, hidden_size, heads=1):
+        super(GAT, self).__init__()
+        self.conv1 = GATConv(num_features, hidden_size, heads=heads, concat=True)
+        self.conv2 = GATConv(hidden_size * heads, hidden_size, heads=heads, concat=False)
         self.fc = nn.Linear(hidden_size, 3)  # Output 3D coordinates
 
     def forward(self, x, edge_index):
@@ -110,10 +110,10 @@ class GCN(nn.Module):
         x = F.relu(x)
         x = self.conv2(x, edge_index)
         x = F.relu(x)
-        # x = torch.mean(x, dim=0, keepdim=True)
         x = F.dropout(x, training=self.training)
         x = self.fc(x)
         return x
+
 
 def train(model, loader, optimizer, criterion, residue_num, num_epochs=100):
     model.train()
