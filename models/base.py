@@ -332,6 +332,9 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
         x, y = batch.x, batch.time
         coords = batch.coords
         # import pdb; pdb.set_trace()
+        coords = coords.view(batch.y.shape[0], coords.shape[1],coords.shape[1],2)
+        # import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         x = x.float()#, y.float()
 
         preds, _, coeffs_recon, coeffs, _,_, coords_recon, aa_recon, aa_gt = self(batch)
@@ -347,14 +350,14 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
     def training_step(self, batch, batch_idx):
         torch.set_grad_enabled(True)
-        preds, targets, coeffs_recon, coeffs, coords, coords_recon, aa_recon, aa_gt, mu, logvar = self.shared_step(batch)
+        preds, targets, coeffs_recon, coeffs, coords, coords_recon, aa_recon, aa_gt, = self.shared_step(batch)
 
         assert len(preds) == len(
             targets), f'preds: {len(preds)} targs: {len(targets)}'
 
         train_loss, train_loss_logs = self.multi_loss(
             predictions=preds, targets=targets, coeffs_recon=coeffs_recon, coeffs=coeffs, batch_idx=batch_idx,
-              coords=coords, coords_recon=coords_recon, aa_recon=aa_recon, aa_gt=aa_gt, mu=mu, logvar=logvar)
+              coords=coords, coords_recon=coords_recon, aa_recon=aa_recon, aa_gt=aa_gt)
 
         train_loss_logs = self.relabel(train_loss_logs, 'train_')
 
@@ -381,7 +384,7 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
     def multi_loss(self, predictions, targets, coeffs_recon, coeffs, batch_idx, coords, coords_recon, aa_recon, aa_gt):
         # main loss
-        main_loss = self.main_loss(predictions=predictions, targets=targets)
+        # main_loss = self.main_loss(predictions=predictions, targets=targets)
 
         # reconstruction loss
         recon_loss = self.recon_loss(predictions=coeffs_recon, targets=coeffs)
@@ -394,8 +397,8 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
 
         #kl divergence loss
         # kl_loss = self.kl_divergence(mu, logvar)
-
-        total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + self.gamma * recon_coords_loss +(1-self.alpha-self.beta_loss-self.gamma) * recon_aa_loss
+        total_loss = self.beta_loss * recon_loss + self.gamma * recon_coords_loss +(1-self.beta_loss-self.gamma) * recon_aa_loss
+        # total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + self.gamma * recon_coords_loss +(1-self.alpha-self.beta_loss-self.gamma) * recon_aa_loss
         # total_loss = self.alpha * main_loss + self.beta_loss * recon_loss + self.gamma * recon_coords_loss + self.delta * recon_aa_loss + (1-self.alpha-self.beta_loss-self.gamma-self.delta) * kl_loss
         # total_loss = self.alpha*main_loss + recon_loss #+ recon_coords_loss
         # total_loss = main_loss
@@ -404,7 +407,7 @@ class TGTransformerBaseModel_ATLAS(LightningModule):
         # print("Recon loss: ", recon_loss)
         log_losses = {
             'total_loss': total_loss.detach(),
-            'time_loss': main_loss.detach(),
+            # 'time_loss': main_loss.detach(),
             'scatter_recon_loss': recon_loss.detach(),
             'coords_recon_loss': recon_coords_loss.detach(),
             'aa_recon_loss': recon_aa_loss.detach(),

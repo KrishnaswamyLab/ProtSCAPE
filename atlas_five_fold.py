@@ -22,7 +22,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pathlib import Path
 
 from models.gsae_model import GSAE
-from models.progsnn import ProGSNN_ATLAS, ProGSNN_ATLAS_noT
+from models.progsnn import ProGSNN_ATLAS
 from torch_geometric.loader import DataLoader
 from torchvision import transforms
 from baselines.Baseline_1.metrics.metrics_fns import calc_dope_scores
@@ -245,6 +245,7 @@ for fold_i in range(5):
     parser.add_argument('--alpha', default=1e-8, type=float)
     parser.add_argument('--beta', default=0.0005, type=float)
     parser.add_argument('--beta_loss', default=0.2, type=float)
+    parser.add_argument('--gamma', default=0.0005, type=float)
     parser.add_argument('--n_epochs', default=300, type=int)
     parser.add_argument('--len_epoch', default=None)
     parser.add_argument('--probs', default=0.2)

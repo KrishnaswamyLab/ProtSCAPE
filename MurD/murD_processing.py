@@ -4,39 +4,70 @@ import torch
 import torch_geometric.data as Data
 import pickle
 from sklearn.neighbors import NearestNeighbors
+from tqdm import tqdm
 # Open the XTC trajectory file
-# def load_data():
-#     # Load the closed conformation PDB
-#     # closed_traj = md.load_pdb("MurD/MurD_closed_selection.pdb")
-#     gt_traj = md.load_pdb('5a5e.pdb')
-#     # Load the open conformation PDB
-#     # open_traj = md.load_pdb("MurD/MurD_open_selection.pdb")
-#     # Remove unit cell information from both trajectories
-#     # closed_traj.unitcell_vectors = None
-#     # open_traj.unitcell_vectors = None
-#     # Concatenate the trajectories
-#     # traj = md.join([closed_traj, open_traj])
-#     import pdb; pdb.set_trace()
-#     return gt_traj
-import MDAnalysis as mda
-
-import MDAnalysis as mda
-
 def load_data():
-    # Load the PDB file
-    u = mda.Universe('5a5e.pdb')
+    # Load the closed conformation PDB
+    closed_traj = md.load_pdb("MurD_closed_selection.pdb")
+    # gt_traj = md.load_pdb('5a5e.pdb')
+    # Load the open conformation PDB
+    open_traj = md.load_pdb("MurD_open_selection.pdb")
+    # Remove unit cell information from both trajectories
+    closed_traj.unitcell_vectors = None
+    open_traj.unitcell_vectors = None
+    # Concatenate the trajectories
+    traj = md.join([closed_traj, open_traj])
+    # import pdb; pdb.set_trace()
+    return traj
+import MDAnalysis as mda
 
-    # Select protein residues and remove alternate locations
-    protein = u.select_atoms('protein and not altloc B')
+import MDAnalysis as mda
+
+# def load_data():
+#     # Load the PDB file
+#     u = mda.Universe('5a5e.pdb')
+
+#     # Select protein residues and remove alternate locations
+#     protein = u.select_atoms('protein and not altloc B')
     
-    # Print the number of residues selected
-    print(f"Number of residues: {len(protein.residues)}")
-    import pdb; pdb.set_trace()
-    return u
+#     # Print the number of residues selected
+#     print(f"Number of residues: {len(protein.residues)}")
+#     # import pdb; pdb.set_trace()
+#     return u
 
+def compute_com_dihedrals_matrix(residue_coords):
+    num_residues = len(residue_coords)
+    dihedral_matrix = np.zeros((num_residues, num_residues))
+    
+    for i in range(num_residues - 3):
+        for j in range(i + 3, num_residues):
+            p0 = residue_coords[i]
+            p1 = residue_coords[i + 1]
+            p2 = residue_coords[i + 2]
+            p3 = residue_coords[j]
 
+            # Compute vectors between consecutive COMs
+            b0 = -1.0 * (p1 - p0)
+            b1 = p2 - p1
+            b2 = p3 - p2
 
-# loaded_universe = load_data()
+            # Normalize b1 so that it does not influence the magnitude of the angle
+            b1 /= np.linalg.norm(b1)
+
+            # Compute the normal vectors to the planes formed by (p0, p1, p2) and (p1, p2, p3)
+            v = b0 - np.dot(b0, b1) * b1
+            w = b2 - np.dot(b2, b1) * b1
+
+            # Compute the dihedral angle
+            x = np.dot(v, w)
+            y = np.dot(np.cross(b1, v), w)
+            angle = np.arctan2(y, x)
+            
+            # Store the dihedral angle in the matrix
+            dihedral_matrix[i, j] = angle
+            dihedral_matrix[j, i] = angle  # Symmetric
+
+    return dihedral_matrix
 
 
 
@@ -58,18 +89,8 @@ def create_pyg_graph(traj, frame_idx, property):
     frame = traj[frame_idx]
     residue_names = [residue.name for residue in frame.top.residues]
     residue_coords = []
-    # with open('1ab1_A_RMSD.tsv', 'r') as file:
-    #     rmsd_data = file.readlines()
-    # rmsd_data = [line.split('\t')[1] for line in rmsd_data]
-    # rmsd_data = rmsd_data[1:]
-    # import pdb; pdb.set_trace()
-    # One-hot encode residue features
     
     node_features = one_hot_encode(residue_names)
-    # Embedding layer
-    # Randomly initialize node features
-    # node_features = torch.randn(len(residue_names), 3)
-    # embedding = torch.nn.Embedding(len(residue_names), 3)
     
     # # Apply embedding to node features
     # node_features = embedding
@@ -80,6 +101,14 @@ def create_pyg_graph(traj, frame_idx, property):
         residue_coords.append(mean_coords)
 
     residue_coords = np.array(residue_coords)
+    # Compute pairwise distances between COM of residues
+    pairwise_distances = np.linalg.norm(residue_coords[:, np.newaxis, :] - residue_coords[np.newaxis, :, :], axis=-1)
+
+    # Compute residue COM-based dihedral angles and differences
+    dihedral_matrix = compute_com_dihedrals_matrix(residue_coords)
+    # import pdb; pdb.set_trace()
+    # Combine distances and dihedral differences into a tensor with shape (num_residues, num_residues, 2)
+    coords_combined = np.stack((pairwise_distances, dihedral_matrix), axis=-1)
 
     timepoint = traj.time[frame_idx]
     if property == 'rog':
@@ -90,7 +119,7 @@ def create_pyg_graph(traj, frame_idx, property):
     #     y = rmsd_data[frame_idx]
     # import pdb; pdb.set_trace()
     # Construct PyTorch Geometric graph
-    graph = Data.Data(x=node_features, coords=residue_coords, time=timepoint, num_nodes=len(residue_names), y = y[0])
+    graph = Data.Data(x=node_features, coords=torch.tensor(coords_combined, dtype=torch.float), time=timepoint, num_nodes=len(residue_names), y = y[0])
     nn = NearestNeighbors(n_neighbors=5+1, metric='euclidean')
     nn.fit(residue_coords)
     _, indices = nn.kneighbors(residue_coords)
@@ -111,13 +140,13 @@ if __name__ == "__main__":
     graphs = []
     property = 'rog'
     # Iterate over each frame in the trajectory and create a graph for each timepoint
-    for frame_idx in range(traj.n_frames):
+    for frame_idx in tqdm(range(traj.n_frames)):
         # import pdb; pdb.set_trace()
         graph = create_pyg_graph(traj, frame_idx, property)
         graphs.append(graph)
     
     # Define the filename for the output .pkl file
-    output_filename = f"graphs_MurD_5a5e.pkl"
+    output_filename = f"graphs_MurD_new.pkl"
 
     # Save the list of graphs to the .pkl file
     with open(output_filename, 'wb') as f:

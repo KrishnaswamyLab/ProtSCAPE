@@ -297,11 +297,13 @@ class Scatter_deshaw(torch.nn.Module):
         s2 = s2_swapped[:, feng_filters()]
 
         x = torch.cat([s0, s1], dim=2)
+        # import pdb; pdb.set_trace()
         x = torch.transpose(x, 1, 2)
+        # import pdb; pdb.set_trace()
         x = torch.cat([x, s2], dim=1)
-
+        # import pdb; pdb.set_trace()
         x_dense = to_dense_batch(x,data.batch)[0]
-
+        # import pdb; pdb.set_trace()
         x = x_dense.reshape(data.num_graphs, -1, self.out_shape())
 
         # mask = self.generate_graph_mask(x)
@@ -312,6 +314,7 @@ class Scatter_deshaw(torch.nn.Module):
         # if hasattr(data, 'batch'):
         #     x = scatter_moments(x, data.batch, 4)
         # else:
+        # import pdb; pdb.set_trace()
         #     x = scatter_moments(x, torch.zeros(data.x.shape[0], dtype=torch.int32), 4)
         #     # print('x returned shape', x.shape)
         # print("Going here")
